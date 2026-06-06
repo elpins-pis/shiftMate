@@ -34,6 +34,12 @@ function StatsPage({ schedules = {}, employees = [] }) {
       : mode === "range"
         ? endDate
         : null;
+  const selectedPeriodLabel = getPeriodLabel({
+    mode,
+    selectedMonth,
+    periodStart,
+    periodEnd,
+  });
 
   const filteredSchedules = Object.entries(schedules).flatMap(
     ([date, dailySchedules]) => {
@@ -116,8 +122,6 @@ function StatsPage({ schedules = {}, employees = [] }) {
     },
   );
 
-  const selectedEmployeeLabel =
-    selectedEmployee === "ALL" ? "전체 직원" : selectedEmployee;
   const isEmployeeSelected = selectedEmployee !== "ALL";
   const allEmployeeStats = (
     isEmployeeSelected
@@ -142,6 +146,14 @@ function StatsPage({ schedules = {}, employees = [] }) {
   const employeesWithWorkTime = employeeStats.filter(
     ([, employee]) => employee.workMinutes > 0,
   );
+  const selectableEmployees = employees.filter((employee) => {
+    const isActive = employee.isActive !== false && !employee.deletedAt;
+    const hasActivity =
+      stats.byEmployee[employee.name]?.work > 0 ||
+      stats.byEmployee[employee.name]?.nonWork > 0;
+
+    return isActive || hasActivity || employee.name === selectedEmployee;
+  });
   const averageEmployeeCount = isEmployeeSelected
     ? 1
     : employeesWithWorkTime.length;
@@ -156,15 +168,17 @@ function StatsPage({ schedules = {}, employees = [] }) {
       style={inputStyle}
     >
       <option value="ALL">전체 직원</option>
-      {employees.map((employee) => (
+      {selectableEmployees.map((employee) => (
         <option key={employee.id} value={employee.name}>
           {employee.name}
+          {employee.isActive === false ? " · 이전" : ""}
         </option>
       ))}
     </select>
   );
 
   const hasNightWork = visibleStats.totalNightWorkMinutes > 0;
+  const hasWeekendWork = visibleStats.totalWeekendWork > 0;
 
   const summaryCards = isEmployeeSelected
     ? [
@@ -184,8 +198,8 @@ function StatsPage({ schedules = {}, employees = [] }) {
           ? [
               {
                 label: "주말근무",
-                value: formatMinutes(visibleStats.totalWeekendWorkMinutes),
-                detail: `${visibleStats.totalWeekendWork}건`,
+                value: `${visibleStats.totalWeekendWork}건`,
+                detail: formatMinutes(visibleStats.totalWeekendWorkMinutes),
                 color: "#364fc7",
                 background: "#eef2ff",
               },
@@ -202,9 +216,9 @@ function StatsPage({ schedules = {}, employees = [] }) {
             ]
           : []),
         {
-          label: "휴무/연차/기타",
+          label: "비근무",
           value: `${visibleStats.totalNonWork}건`,
-          detail: formatNonWorkDetails(visibleStats.totalNonWorkDetails),
+          detail: formatNonWorkSummaryDetails(visibleStats.totalNonWorkDetails),
           color: "#f76707",
           background: "#fff4e6",
         },
@@ -234,9 +248,9 @@ function StatsPage({ schedules = {}, employees = [] }) {
             ]
           : []),
         {
-          label: "휴무/연차/기타",
+          label: "비근무",
           value: `${visibleStats.totalNonWork}건`,
-          detail: formatNonWorkDetails(visibleStats.totalNonWorkDetails),
+          detail: formatNonWorkSummaryDetails(visibleStats.totalNonWorkDetails),
           color: "#f76707",
           background: "#fff4e6",
         },
@@ -285,7 +299,7 @@ function StatsPage({ schedules = {}, employees = [] }) {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr",
+              gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
               gap: "6px",
             }}
           >
@@ -310,11 +324,11 @@ function StatsPage({ schedules = {}, employees = [] }) {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr",
+              gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
               gap: "6px",
             }}
           >
-            <div>
+            <div style={{ minWidth: 0 }}>
               <input
                 type="month"
                 value={selectedMonth}
@@ -323,7 +337,7 @@ function StatsPage({ schedules = {}, employees = [] }) {
               />
             </div>
 
-            <div>
+            <div style={{ minWidth: 0 }}>
               {employeeSelect}
             </div>
           </div>
@@ -331,7 +345,7 @@ function StatsPage({ schedules = {}, employees = [] }) {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr",
+              gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
               gap: "6px",
             }}
           >
@@ -357,73 +371,101 @@ function StatsPage({ schedules = {}, employees = [] }) {
         )}
       </section>
 
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(2, 1fr)",
-          gap: "6px",
-          marginBottom: "10px",
-        }}
-      >
-        {summaryCards.map((card) => (
-          <SummaryCard key={card.label} card={card} />
-        ))}
-      </section>
+      {!isEmployeeSelected && (
+        <section
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, 1fr)",
+            gap: "5px",
+            marginBottom: "10px",
+          }}
+        >
+          {summaryCards.map((card) => (
+            <SummaryCard key={card.label} card={card} />
+          ))}
+        </section>
+      )}
 
-      <section
-        style={{
-          background: "#fff",
-          border: "1px solid #e9ecef",
-          borderRadius: "14px",
-          padding: "12px",
-        }}
-      >
-        <h2 style={{ fontSize: "17px", marginBottom: "10px" }}>
-          {isEmployeeSelected ? `${selectedEmployeeLabel} 상세` : "직원별 통계"}
-        </h2>
+      {isEmployeeSelected && (
+        <PersonalStatsPanel
+          periodLabel={selectedPeriodLabel}
+          stats={visibleStats}
+          hasNightWork={hasNightWork}
+          hasWeekendWork={hasWeekendWork}
+        />
+      )}
 
-        {employeeStats.length === 0 ? (
-          <div
-            style={{
-              color: "#868e96",
-              background: "#f8f9fb",
-              borderRadius: "12px",
-              padding: "18px",
-              textAlign: "center",
-              fontSize: "14px",
-            }}
-          >
-            선택한 기간에 등록된 스케줄이 없습니다.
-          </div>
-        ) : isEmployeeSelected ? (
-          <EmployeeStatCard
-            name={employeeStats[0][0]}
-            employee={employeeStats[0][1]}
-            hasNightWork={hasNightWork}
-            variant="detail"
-          />
-        ) : (
+      {!isEmployeeSelected && (
+        <section
+          style={{
+            background: "#fff",
+            border: "1px solid #e9ecef",
+            borderRadius: "16px",
+            padding: "14px",
+          }}
+        >
           <div
             style={{
               display: "flex",
-              flexDirection: "column",
-              gap: "6px",
-              maxHeight: "460px",
-              overflowY: "auto",
-              paddingRight: "2px",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "10px",
+              marginBottom: "12px",
             }}
           >
-            {employeeStats.map(([name, employee]) => (
-              <EmployeeStatCard
-                key={name}
-                name={name}
-                employee={employee}
-                hasNightWork={hasNightWork}
-              />
-            ))}
+            <h2 style={{ fontSize: "18px" }}>직원별 통계</h2>
+            <div
+              style={{
+                background: "#f1f3f5",
+                borderRadius: "999px",
+                color: "#868e96",
+                flexShrink: 0,
+                fontSize: "11px",
+                fontWeight: "900",
+                padding: "5px 9px",
+              }}
+            >
+              {employeeStats.length}명
+            </div>
           </div>
-        )}
-      </section>
+
+          {employeeStats.length === 0 ? (
+            <div
+              style={{
+                color: "#868e96",
+                background: "#f8f9fb",
+                borderRadius: "12px",
+                padding: "18px",
+                textAlign: "center",
+                fontSize: "14px",
+              }}
+            >
+              선택한 기간에 등록된 스케줄이 없습니다.
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "6px",
+                maxHeight: "460px",
+                overflowY: "auto",
+                paddingRight: "2px",
+              }}
+            >
+              {employeeStats.map(([name, employee]) => (
+                <EmployeeStatCard
+                  key={name}
+                  name={name}
+                  employee={employee}
+                  hasNightWork={hasNightWork}
+                  hasWeekendWork={hasWeekendWork}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
@@ -526,12 +568,55 @@ function aggregateEmployeeStats(employeeStats) {
   );
 }
 
-function formatNonWorkDetails(details) {
-  const entries = Object.entries(details);
+function formatNonWorkSummaryDetails(details) {
+  const entries = getSortedNonWorkEntries(details);
 
   if (entries.length === 0) return "";
 
-  return entries.map(([label, count]) => `${label} ${count}`).join(" / ");
+  const visibleEntries = entries.slice(0, 2);
+  const summary = visibleEntries
+    .map(([label, count]) => `${label} ${count}`)
+    .join(" / ");
+
+  return entries.length <= 2 ? summary : `${summary} 외`;
+}
+
+function getNonWorkDetailEntries(details) {
+  return getSortedNonWorkEntries(details);
+}
+
+function getSortedNonWorkEntries(details) {
+  return Object.entries(details)
+    .filter(([, count]) => count > 0)
+    .sort(([labelA], [labelB]) => {
+      const orderA = getNonWorkLabelOrder(labelA);
+      const orderB = getNonWorkLabelOrder(labelB);
+
+      if (orderA !== orderB) return orderA - orderB;
+
+      return labelA.localeCompare(labelB, "ko");
+    });
+}
+
+function getNonWorkLabelOrder(label) {
+  const normalizedLabel = label.toUpperCase();
+
+  if (normalizedLabel === "OFF" || label === "휴무") return 0;
+  if (label.includes("연차") || label.includes("휴가")) return 1;
+
+  return 2;
+}
+
+function getPeriodLabel({ mode, selectedMonth, periodStart, periodEnd }) {
+  if (mode === "month") {
+    return dayjs(`${selectedMonth}-01`).format("YYYY년 M월");
+  }
+
+  return `${formatDateLabel(periodStart)} - ${formatDateLabel(periodEnd)}`;
+}
+
+function formatDateLabel(date) {
+  return dayjs(date).format("M.D");
 }
 
 function getWeekStart(date) {
@@ -575,64 +660,346 @@ function SummaryCard({ card }) {
   return (
     <div
       style={{
-        background: card.background,
-        border: "1px solid #e9ecef",
+        background: "#fff",
+        border: "1px solid #edf0f2",
         borderRadius: "10px",
-        padding: "11px 10px",
-        minHeight: "76px",
+        boxShadow: "0 1px 4px rgba(25, 31, 40, 0.04)",
+        padding: "8px",
+        minHeight: "54px",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "space-between",
+        gap: "4px",
+      }}
+    >
+      <div
+        style={{
+          alignItems: "center",
+          color: "#495057",
+          display: "flex",
+          fontSize: "11px",
+          fontWeight: "900",
+          gap: "5px",
+          lineHeight: "1.35",
+          minWidth: 0,
+        }}
+      >
+        <span
+          style={{
+            alignItems: "center",
+            display: "flex",
+            gap: "5px",
+            minWidth: 0,
+          }}
+        >
+          <span
+            style={{
+              background: card.color,
+              borderRadius: "999px",
+              display: "inline-block",
+              flexShrink: 0,
+              height: "6px",
+              width: "6px",
+            }}
+          />
+          <span
+            style={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {card.label}
+          </span>
+        </span>
+      </div>
+
+      <div
+        style={{
+          alignItems: "flex-end",
+          color: card.color,
+          display: "flex",
+          fontSize: "20px",
+          fontWeight: "900",
+          gap: "6px",
+          lineHeight: "1",
+          minWidth: 0,
+        }}
+      >
+        <span style={{ flexShrink: 0 }}>{card.value}</span>
+        {card.detail && (
+          <span
+            style={{
+              color: "#868e96",
+              fontSize: "10px",
+              fontWeight: "800",
+              lineHeight: "1.15",
+              minWidth: 0,
+              overflow: "hidden",
+              paddingBottom: "1px",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+            title={card.detail}
+          >
+            {card.detail}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PersonalStatsPanel({
+  periodLabel,
+  stats,
+  hasNightWork,
+  hasWeekendWork,
+}) {
+  const nonWorkDetails = getSortedNonWorkEntries(stats.totalNonWorkDetails);
+  const nonWorkDetailText =
+    nonWorkDetails.length > 0
+      ? nonWorkDetails.map(([label, count]) => `${label} ${count}`).join(" / ")
+      : "없음";
+  const averageWorkMinutes =
+    stats.totalWork > 0 ? Math.round(stats.totalWorkMinutes / stats.totalWork) : 0;
+
+  return (
+    <section
+      style={{
+        background: "#fff",
+        border: "1px solid #edf0f2",
+        borderRadius: "16px",
+        marginBottom: "10px",
+        padding: "16px",
+      }}
+    >
+      {stats.totalWork === 0 && stats.totalNonWork === 0 ? (
+        <div
+          style={{
+            background: "#f8f9fb",
+            borderRadius: "10px",
+            color: "#868e96",
+            fontSize: "13px",
+            fontWeight: "800",
+            padding: "14px",
+            textAlign: "center",
+          }}
+        >
+          선택한 기간에 등록된 스케줄이 없습니다.
+        </div>
+      ) : (
+        <>
+          <div
+            style={{
+              alignItems: "center",
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "10px",
+              marginBottom: "14px",
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  color: "#191f28",
+                  fontSize: "16px",
+                  fontWeight: "900",
+                  lineHeight: "1.2",
+                }}
+              >
+                이번 기간 근무 요약
+              </div>
+              <div
+                style={{
+                  color: "#868e96",
+                  fontSize: "11px",
+                  fontWeight: "800",
+                  marginTop: "3px",
+                }}
+              >
+                {periodLabel}
+              </div>
+            </div>
+            <div
+              style={{
+                background: "#edf4ff",
+                borderRadius: "999px",
+                color: "#1971c2",
+                flexShrink: 0,
+                fontSize: "11px",
+                fontWeight: "900",
+                padding: "6px 9px",
+              }}
+            >
+              근무 {stats.totalWork}건
+            </div>
+          </div>
+
+          <div
+            style={{
+              background: "#f8fbf9",
+              borderRadius: "14px",
+              marginBottom: "12px",
+              padding: "14px",
+            }}
+          >
+            <div
+              style={{
+                color: "#868e96",
+                fontSize: "11px",
+                fontWeight: "900",
+                marginBottom: "7px",
+              }}
+            >
+              총 근무시간
+            </div>
+            <div
+              style={{
+                alignItems: "flex-end",
+                color: "#2b8a3e",
+                display: "flex",
+                gap: "8px",
+                lineHeight: "1",
+                minWidth: 0,
+              }}
+            >
+              <strong style={{ fontSize: "34px", fontWeight: "900" }}>
+                {formatMinutes(stats.totalWorkMinutes)}
+              </strong>
+              <span
+                style={{
+                  color: "#868e96",
+                  fontSize: "12px",
+                  fontWeight: "800",
+                  paddingBottom: "2px",
+                }}
+              >
+                {stats.totalWork}건
+              </span>
+            </div>
+            <div
+              style={{
+                color: "#868e96",
+                fontSize: "12px",
+                fontWeight: "800",
+                marginTop: "8px",
+              }}
+            >
+              {stats.totalWork}번 근무 · 평균 {formatMinutes(averageWorkMinutes)}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {hasWeekendWork && (
+              <PersonalReportRow
+                label="주말근무"
+                value={`${stats.totalWeekendWork}건`}
+                detail={`${getRatio(stats.totalWeekendWork, stats.totalWork)}% · ${formatMinutes(stats.totalWeekendWorkMinutes)}`}
+                color="#364fc7"
+              />
+            )}
+            {hasNightWork && (
+              <PersonalReportRow
+                label="야간근로"
+                value={formatMinutes(stats.totalNightWorkMinutes)}
+                detail={`${getRatio(stats.totalNightWorkMinutes, stats.totalWorkMinutes)}%`}
+                color="#7048e8"
+              />
+            )}
+            <PersonalReportRow
+              label="비근무"
+              value={`${stats.totalNonWork}건`}
+              detail={nonWorkDetailText}
+              color="#f76707"
+            />
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+function getRatio(part, total) {
+  if (!total) return 0;
+
+  return Math.round((part / total) * 100);
+}
+
+function PersonalReportRow({ label, value, detail, color }) {
+  return (
+    <div
+      style={{
+        alignItems: "center",
+        display: "grid",
+        gridTemplateColumns: "74px minmax(0, 1fr)",
+        gap: "8px",
+        minWidth: 0,
+        padding: "1px 0",
       }}
     >
       <div
         style={{
           color: "#495057",
-          fontSize: "11px",
-          fontWeight: "700",
-          lineHeight: "1.35",
+          fontSize: "12px",
+          fontWeight: "900",
         }}
       >
-        {card.label}
+        {label}
       </div>
-
       <div
         style={{
-          color: card.color,
-          fontSize: "21px",
-          fontWeight: "800",
+          alignItems: "flex-end",
+          color,
+          display: "flex",
+          fontSize: "14px",
+          fontWeight: "900",
+          gap: "5px",
           lineHeight: "1.15",
+          minWidth: 0,
         }}
       >
-        {card.value}
+        <span style={{ flexShrink: 0 }}>{value}</span>
+        {detail && (
+          <span
+            style={{
+              color: "#868e96",
+              fontSize: "11px",
+              fontWeight: "800",
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+            title={detail}
+          >
+            {detail}
+          </span>
+        )}
       </div>
-      {card.detail && (
-        <div
-          style={{
-            color: "#868e96",
-            fontSize: "10px",
-            fontWeight: "700",
-            marginTop: "4px",
-            lineHeight: "1.2",
-          }}
-        >
-          {card.detail}
-        </div>
-      )}
     </div>
   );
 }
 
-function EmployeeStatCard({ name, employee, hasNightWork, variant = "list" }) {
+function EmployeeStatCard({
+  name,
+  employee,
+  hasNightWork,
+  hasWeekendWork,
+  variant = "list",
+}) {
   const isDetail = variant === "detail";
+  const nonWorkDetails = getNonWorkDetailEntries(employee.nonWorkDetails);
+  const statColumnCount =
+    3 + (hasWeekendWork ? 1 : 0) + (hasNightWork ? 1 : 0);
 
   return (
     <div
       style={{
-        background: "#f8f9fb",
-        border: "1px solid #edf0f2",
+        background: "#fff",
+        border: "1px solid #e9ecef",
         borderRadius: isDetail ? "14px" : "10px",
-        padding: isDetail ? "14px" : "10px",
+        boxShadow: isDetail ? "0 1px 4px rgba(25, 31, 40, 0.04)" : "none",
+        padding: isDetail ? "14px" : "9px",
       }}
     >
       <div
@@ -646,8 +1013,8 @@ function EmployeeStatCard({ name, employee, hasNightWork, variant = "list" }) {
         <div
           style={{
             minWidth: "58px",
-            fontSize: isDetail ? "18px" : "15px",
-            fontWeight: "800",
+            fontSize: isDetail ? "18px" : "16px",
+            fontWeight: "900",
             marginBottom: isDetail ? "12px" : 0,
           }}
         >
@@ -658,8 +1025,8 @@ function EmployeeStatCard({ name, employee, hasNightWork, variant = "list" }) {
           style={{
             flex: 1,
             display: "grid",
-            gridTemplateColumns: `repeat(${hasNightWork ? 4 : 3}, minmax(0, 1fr))`,
-            gap: isDetail ? "6px" : "4px",
+            gridTemplateColumns: `repeat(${statColumnCount}, minmax(0, 1fr))`,
+            gap: isDetail ? "6px" : "3px",
           }}
         >
           <CompactStat label="근무" value={`${employee.work}`} color="#3182f6" />
@@ -668,6 +1035,14 @@ function EmployeeStatCard({ name, employee, hasNightWork, variant = "list" }) {
             value={formatCompactMinutes(employee.workMinutes)}
             color="#2b8a3e"
           />
+          {hasWeekendWork && (
+            <CompactStat
+              label="주말"
+              value={`${employee.weekendWork}`}
+              detail={formatCompactMinutes(employee.weekendWorkMinutes)}
+              color="#364fc7"
+            />
+          )}
           {hasNightWork && (
             <CompactStat
               label="야간근로"
@@ -676,24 +1051,46 @@ function EmployeeStatCard({ name, employee, hasNightWork, variant = "list" }) {
             />
           )}
           <CompactStat
-            label="휴무/연차/기타"
+            label="비근무"
             value={`${employee.nonWork}`}
             color="#f76707"
           />
         </div>
       </div>
 
-      {employee.nonWork > 0 && (
+      {nonWorkDetails.length > 0 && (
         <div
           style={{
-            color: "#868e96",
-            fontSize: isDetail ? "12px" : "11px",
-            fontWeight: "700",
+            alignItems: "center",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "5px",
             marginTop: isDetail ? "10px" : "6px",
-            lineHeight: "1.35",
           }}
         >
-          휴무/연차/기타: {formatNonWorkDetails(employee.nonWorkDetails)}
+          <span
+            style={{
+              color: "#868e96",
+              fontSize: isDetail ? "11px" : "10px",
+              fontWeight: "800",
+            }}
+          >
+            상세
+          </span>
+          {nonWorkDetails.map(([label, count]) => (
+            <span
+              key={label}
+              style={{
+                color: "#d9480f",
+                fontSize: isDetail ? "11px" : "10px",
+                fontWeight: "900",
+                lineHeight: "1.2",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {label} {count}
+            </span>
+          ))}
         </div>
       )}
     </div>
@@ -707,7 +1104,7 @@ function CompactStat({ label, value, detail, color }) {
         background: "#fff",
         border: "1px solid #edf0f2",
         borderRadius: "8px",
-        padding: "7px 4px",
+        padding: "6px 3px",
         textAlign: "center",
         minWidth: 0,
       }}
@@ -715,9 +1112,9 @@ function CompactStat({ label, value, detail, color }) {
       <div
         style={{
           color: "#868e96",
-          fontSize: "10px",
+          fontSize: "9px",
           fontWeight: "700",
-          marginBottom: "3px",
+          marginBottom: "2px",
         }}
       >
         {label}
@@ -726,7 +1123,7 @@ function CompactStat({ label, value, detail, color }) {
         style={{
           color,
           fontSize: "14px",
-          fontWeight: "800",
+          fontWeight: "900",
           lineHeight: "1.15",
           whiteSpace: "nowrap",
         }}
@@ -753,10 +1150,15 @@ function CompactStat({ label, value, detail, color }) {
 
 const inputStyle = {
   width: "100%",
-  padding: "10px",
+  minWidth: 0,
+  minHeight: "42px",
+  padding: "9px 10px",
+  background: "#fff",
   borderRadius: "10px",
-  border: "1px solid #ddd",
-  fontSize: "13px",
+  border: "1px solid #dfe3e8",
+  color: "#191f28",
+  fontSize: "12px",
+  fontWeight: "800",
 };
 
 function getModeButtonStyle(isActive) {

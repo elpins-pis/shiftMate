@@ -9,6 +9,17 @@ body {
   font-family: sans-serif;
 }
 
+select {
+  min-height: 42px;
+  background-color: #fff;
+  color: #191f28;
+  border-color: #dfe3e8;
+}
+
+select:not(:disabled) {
+  opacity: 1;
+}
+
 .emoji-input::placeholder {
   color: #adb5bd;
   font-size: 13px;

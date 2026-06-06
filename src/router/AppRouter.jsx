@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import { FiCalendar } from "react-icons/fi";
+import { FiCalendar, FiLock } from "react-icons/fi";
 
 import { useAuth } from "../contexts/useAuth";
 import {
@@ -128,8 +128,8 @@ function AppRouter() {
 
   const reloadData = () => setReloadKey((prev) => prev + 1);
 
-  const handleApproveMember = async (targetUserId) => {
-    await approveWorkspaceMember(workspace.id, targetUserId);
+  const handleApproveMember = async (targetUserId, targetEmployeeId) => {
+    await approveWorkspaceMember(workspace.id, targetUserId, targetEmployeeId);
     reloadData();
   };
 
@@ -138,9 +138,11 @@ function AppRouter() {
     reloadData();
   };
 
+  const isAdmin = memberRole === "ADMIN";
+
   return (
     <BrowserRouter>
-      <MainLayout>
+      <MainLayout memberRole={memberRole}>
         <Routes>
           <Route
             path="/"
@@ -153,6 +155,7 @@ function AppRouter() {
                 setSchedules={setSchedules}
                 patternTemplates={patternTemplates}
                 onDataChanged={reloadData}
+                canManage={isAdmin}
               />
             }
           />
@@ -165,39 +168,110 @@ function AppRouter() {
           <Route
             path="/employees"
             element={
-              <EmployeesPage
-                workspace={workspace}
-                employees={employees}
-                setEmployees={setEmployees}
-                schedules={schedules}
-                setSchedules={setSchedules}
-                onDataChanged={reloadData}
-              />
+              isAdmin ? (
+                <EmployeesPage
+                  workspace={workspace}
+                  employees={employees}
+                  setEmployees={setEmployees}
+                  schedules={schedules}
+                  setSchedules={setSchedules}
+                  onDataChanged={reloadData}
+                />
+              ) : (
+                <AdminOnlyPage />
+              )
             }
           />
           <Route
             path="/settings"
             element={
-              <SettingsPage
-                shiftTypes={shiftTypes}
-                setShiftTypes={setShiftTypes}
-                schedules={schedules}
-                setSchedules={setSchedules}
-                patternTemplates={patternTemplates}
-                setPatternTemplates={setPatternTemplates}
-                workspace={workspace}
-                memberRole={memberRole}
-                pendingMembers={pendingMembers}
-                onApproveMember={handleApproveMember}
-                onRejectMember={handleRejectMember}
-                onDataChanged={reloadData}
-              />
+              isAdmin ? (
+                <SettingsPage
+                  shiftTypes={shiftTypes}
+                  setShiftTypes={setShiftTypes}
+                  employees={employees}
+                  schedules={schedules}
+                  setSchedules={setSchedules}
+                  patternTemplates={patternTemplates}
+                  setPatternTemplates={setPatternTemplates}
+                  workspace={workspace}
+                  memberRole={memberRole}
+                  pendingMembers={pendingMembers}
+                  onApproveMember={handleApproveMember}
+                  onRejectMember={handleRejectMember}
+                  onDataChanged={reloadData}
+                />
+              ) : (
+                <AdminOnlyPage />
+              )
             }
           />
-          <Route path="/help" element={<HelpPage />} />
+          <Route path="/help" element={isAdmin ? <HelpPage /> : <AdminOnlyPage />} />
         </Routes>
       </MainLayout>
     </BrowserRouter>
+  );
+}
+
+function AdminOnlyPage() {
+  return (
+    <div
+      style={{
+        minHeight: "calc(100vh - 150px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "28px 18px",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          background: "rgba(248, 249, 251, 0.86)",
+          border: "1px solid #e9ecef",
+          borderRadius: "18px",
+          backdropFilter: "blur(8px)",
+          padding: "24px 18px",
+          textAlign: "center",
+        }}
+      >
+        <div
+          style={{
+            width: "44px",
+            height: "44px",
+            borderRadius: "999px",
+            background: "#edf4ff",
+            color: "#3182f6",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            margin: "0 auto 12px",
+          }}
+        >
+          <FiLock size={20} />
+        </div>
+        <div
+          style={{
+            color: "#191f28",
+            fontSize: "18px",
+            fontWeight: "900",
+            marginBottom: "6px",
+          }}
+        >
+          관리자 권한이 필요합니다
+        </div>
+        <div
+          style={{
+            color: "#868e96",
+            fontSize: "13px",
+            fontWeight: "700",
+            lineHeight: "1.45",
+          }}
+        >
+          직원 관리와 설정은 관리자만 볼 수 있습니다.
+        </div>
+      </div>
+    </div>
   );
 }
 

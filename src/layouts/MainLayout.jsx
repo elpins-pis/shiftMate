@@ -4,7 +4,7 @@ import { useAuth } from "../contexts/useAuth";
 
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 
-function MainLayout({ children }) {
+function MainLayout({ children, memberRole }) {
   const today = dayjs();
   const { user, signOut } = useAuth();
 
@@ -77,7 +77,7 @@ function MainLayout({ children }) {
 
       <main style={{ padding: "6px" }}>{children}</main>
 
-      <BottomNav />
+      <BottomNav memberRole={memberRole} />
     </div>
   );
 }

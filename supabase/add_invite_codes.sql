@@ -6,6 +6,22 @@ add column if not exists invite_code text;
 alter table public.workspace_members
 add column if not exists user_email text;
 
+alter table public.employees
+add column if not exists is_active boolean not null default true;
+
+alter table public.employees
+add column if not exists inactive_at date;
+
+alter table public.employees
+add column if not exists deleted_at timestamptz;
+
+alter table public.employees
+drop constraint if exists employees_workspace_id_name_key;
+
+create unique index if not exists employees_workspace_visible_name_key
+on public.employees(workspace_id, name)
+where deleted_at is null;
+
 alter table public.workspace_members
 drop constraint if exists workspace_members_role_check;
 

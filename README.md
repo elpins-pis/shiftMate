@@ -1,41 +1,16 @@
-# ShiftMate
+# React + Vite
 
-근무표 관리 앱입니다.
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-직원 등록, 근무유형 설정, 월별 스케줄 등록, 휴무 관리, 패턴 등록을 지원합니다.
+Currently, two official plugins are available:
 
-## 기술 스택
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
-- React + Vite
-- Supabase Auth / Database
-- Capacitor Android
+## React Compiler
 
-## 로컬 실행
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
-```bash
-npm install
-npm run dev
-```
+## Expanding the ESLint configuration
 
-## 환경변수
-
-루트에 `.env` 파일을 만들고 아래 값을 입력합니다.
-
-```env
-VITE_SUPABASE_URL=
-VITE_SUPABASE_PUBLISHABLE_KEY=
-```
-
-## 웹 빌드
-
-```bash
-npm run build
-```
-
-## Android 동기화
-
-```bash
-npm run android:sync
-```
-
-자세한 배포 방법은 `docs/` 폴더를 확인하세요.
+If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.

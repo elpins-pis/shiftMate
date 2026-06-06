@@ -1,7 +1,8 @@
 import { NavLink, useLocation } from "react-router-dom";
 
-function BottomNav() {
+function BottomNav({ memberRole }) {
   const location = useLocation();
+  const isAdmin = memberRole === "ADMIN";
   const navStyle = ({ isActive }) => ({
     flex: 1,
     textAlign: "center",
@@ -33,18 +34,22 @@ function BottomNav() {
         통계
       </NavLink>
 
-      <NavLink to="/employees" style={navStyle}>
-        직원
-      </NavLink>
+      {isAdmin && (
+        <NavLink to="/employees" style={navStyle}>
+          직원
+        </NavLink>
+      )}
 
-      <NavLink
-        to="/settings"
-        style={({ isActive }) =>
-          navStyle({ isActive: isActive || location.pathname === "/help" })
-        }
-      >
-        설정
-      </NavLink>
+      {isAdmin && (
+        <NavLink
+          to="/settings"
+          style={({ isActive }) =>
+            navStyle({ isActive: isActive || location.pathname === "/help" })
+          }
+        >
+          설정
+        </NavLink>
+      )}
     </nav>
   );
 }

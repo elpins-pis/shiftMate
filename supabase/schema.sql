@@ -48,11 +48,14 @@ create table public.employees (
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
   name text not null,
   role text not null default 'USER' check (role in ('ADMIN', 'USER')),
+  user_id uuid references auth.users(id) on delete set null,
+  is_active boolean not null default true,
+  inactive_at date,
+  deleted_at timestamptz,
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (workspace_id, id),
-  unique (workspace_id, name)
+  unique (workspace_id, id)
 );
 
 create table public.shift_types (
@@ -123,6 +126,12 @@ create table public.pattern_template_days (
 );
 
 create index employees_workspace_id_idx on public.employees(workspace_id);
+create unique index employees_workspace_visible_name_key
+on public.employees(workspace_id, name)
+where deleted_at is null;
+create unique index employees_workspace_user_id_key
+on public.employees(workspace_id, user_id)
+where user_id is not null;
 create index shift_types_workspace_id_idx on public.shift_types(workspace_id);
 create index schedules_workspace_date_idx on public.schedules(workspace_id, work_date);
 create index schedules_employee_date_idx on public.schedules(employee_id, work_date);
@@ -281,7 +290,8 @@ grant execute on function public.join_workspace_by_code(text) to authenticated;
 
 create or replace function public.approve_workspace_member(
   target_workspace_id uuid,
-  target_user_id uuid
+  target_user_id uuid,
+  target_employee_id uuid
 )
 returns void
 language plpgsql
@@ -293,15 +303,34 @@ begin
     raise exception 'Admin permission required';
   end if;
 
+  if target_employee_id is null then
+    raise exception 'Employee link required';
+  end if;
+
+  if not exists (
+    select 1
+    from public.employees
+    where workspace_id = target_workspace_id
+      and id = target_employee_id
+      and deleted_at is null
+  ) then
+    raise exception 'Employee not found';
+  end if;
+
   update public.workspace_members
   set role = 'USER'
   where workspace_id = target_workspace_id
     and user_id = target_user_id
     and role = 'PENDING';
+
+  update public.employees
+  set user_id = target_user_id
+  where workspace_id = target_workspace_id
+    and id = target_employee_id;
 end;
 $$;
 
-grant execute on function public.approve_workspace_member(uuid, uuid) to authenticated;
+grant execute on function public.approve_workspace_member(uuid, uuid, uuid) to authenticated;
 
 create or replace function public.reject_workspace_member(
   target_workspace_id uuid,
@@ -350,7 +379,10 @@ with check (public.is_workspace_admin(workspace_id));
 
 create policy "members can read employees"
 on public.employees for select
-using (public.is_workspace_member(workspace_id));
+using (
+  public.is_workspace_admin(workspace_id)
+  or user_id = auth.uid()
+);
 
 create policy "admins can manage employees"
 on public.employees for all
@@ -368,7 +400,16 @@ with check (public.is_workspace_admin(workspace_id));
 
 create policy "members can read schedules"
 on public.schedules for select
-using (public.is_workspace_member(workspace_id));
+using (
+  public.is_workspace_admin(workspace_id)
+  or exists (
+    select 1
+    from public.employees
+    where employees.workspace_id = schedules.workspace_id
+      and employees.id = schedules.employee_id
+      and employees.user_id = auth.uid()
+  )
+);
 
 create policy "admins can manage schedules"
 on public.schedules for all

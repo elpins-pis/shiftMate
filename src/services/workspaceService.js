@@ -21,7 +21,7 @@ export async function loadWorkspaceAppData() {
     };
   }
 
-  const { workspace, role } = membership;
+  const { workspace, role, userId } = membership;
 
   if (role === "PENDING") {
     return {
@@ -37,30 +37,43 @@ export async function loadWorkspaceAppData() {
 
   await seedDefaultShiftTypesIfNeeded(workspace.id);
 
-  const [employees, shiftTypes, schedules, patternTemplates, pendingMembers] =
+  const [allEmployees, shiftTypes, patternTemplates, pendingMembers] =
     await Promise.all([
       fetchEmployees(workspace.id),
       fetchShiftTypes(workspace.id),
-      fetchSchedules(workspace.id),
       fetchPatternTemplates(workspace.id),
       role === "ADMIN" ? fetchPendingMembers(workspace.id) : [],
     ]);
+
+  const currentEmployee = allEmployees.find(
+    (employee) => employee.userId && employee.userId === userId,
+  );
+  const visibleEmployees =
+    role === "ADMIN" ? allEmployees : currentEmployee ? [currentEmployee] : [];
+  const schedules =
+    role === "ADMIN"
+      ? await fetchSchedules(workspace.id)
+      : currentEmployee
+        ? await fetchSchedules(workspace.id, currentEmployee.id)
+        : {};
 
   return {
     workspace,
     memberRole: role,
     pendingMembers,
-    employees,
+    employees: visibleEmployees,
     shiftTypes,
     schedules,
     patternTemplates,
+    currentEmployee,
   };
 }
 
-export async function approveWorkspaceMember(workspaceId, userId) {
+export async function approveWorkspaceMember(workspaceId, userId, employeeId) {
   const { error } = await supabase.rpc("approve_workspace_member", {
     target_workspace_id: workspaceId,
     target_user_id: userId,
+    target_employee_id: employeeId,
   });
 
   if (error) throw error;
@@ -97,12 +110,51 @@ export async function createEmployee(workspaceId, employee, sortOrder) {
     name: employee.name,
     role: employee.role,
     sort_order: sortOrder,
+    is_active: true,
+    inactive_at: null,
+    deleted_at: null,
   });
 
   if (error) throw error;
 }
 
-export async function deleteEmployee(employeeId) {
+export async function deactivateEmployee(employeeId) {
+  const { error } = await supabase
+    .from("employees")
+    .update({
+      is_active: false,
+      inactive_at: new Date().toISOString().slice(0, 10),
+    })
+    .eq("id", employeeId);
+
+  if (error) throw error;
+}
+
+export async function restoreEmployee(employeeId) {
+  const { error } = await supabase
+    .from("employees")
+    .update({
+      is_active: true,
+      inactive_at: null,
+      deleted_at: null,
+    })
+    .eq("id", employeeId);
+
+  if (error) throw error;
+}
+
+export async function hideEmployee(employeeId) {
+  const { error } = await supabase
+    .from("employees")
+    .update({
+      deleted_at: new Date().toISOString(),
+    })
+    .eq("id", employeeId);
+
+  if (error) throw error;
+}
+
+export async function deleteEmployeeWithSchedules(employeeId) {
   const { error } = await supabase.from("employees").delete().eq("id", employeeId);
 
   if (error) throw error;
@@ -265,6 +317,7 @@ async function getCurrentWorkspaceMembership() {
     .select(
       `
         role,
+        user_id,
         user_email,
         workspaces (
           id,
@@ -282,6 +335,7 @@ async function getCurrentWorkspaceMembership() {
 
   return {
     role: data[0].role,
+    userId: data[0].user_id,
     workspace: data[0].workspaces,
   };
 }
@@ -314,8 +368,9 @@ async function seedDefaultShiftTypesIfNeeded(workspaceId) {
 async function fetchEmployees(workspaceId) {
   const { data, error } = await supabase
     .from("employees")
-    .select("id, name, role, sort_order")
+    .select("id, name, role, user_id, sort_order, is_active, inactive_at, deleted_at")
     .eq("workspace_id", workspaceId)
+    .is("deleted_at", null)
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
 
@@ -325,6 +380,10 @@ async function fetchEmployees(workspaceId) {
     id: employee.id,
     name: employee.name,
     role: employee.role,
+    userId: employee.user_id,
+    isActive: employee.is_active !== false,
+    inactiveAt: employee.inactive_at,
+    deletedAt: employee.deleted_at,
   }));
 }
 
@@ -358,8 +417,8 @@ async function fetchShiftTypes(workspaceId) {
   return data.map(mapShiftType);
 }
 
-async function fetchSchedules(workspaceId) {
-  const { data, error } = await supabase
+async function fetchSchedules(workspaceId, employeeId = null) {
+  let query = supabase
     .from("schedules")
     .select(
       `
@@ -374,8 +433,13 @@ async function fetchSchedules(workspaceId) {
         shift_types ( name, icon, color, category )
       `,
     )
-    .eq("workspace_id", workspaceId)
-    .order("work_date", { ascending: true });
+    .eq("workspace_id", workspaceId);
+
+  if (employeeId) {
+    query = query.eq("employee_id", employeeId);
+  }
+
+  const { data, error } = await query.order("work_date", { ascending: true });
 
   if (error) throw error;
 

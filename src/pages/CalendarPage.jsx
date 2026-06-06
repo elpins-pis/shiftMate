@@ -18,6 +18,7 @@ function CalendarPage({
   setSchedules,
   patternTemplates = [],
   onDataChanged,
+  canManage = true,
 }) {
   const navigate = useNavigate();
   const [currentDate, setCurrentDate] = useState(dayjs());
@@ -69,6 +70,9 @@ function CalendarPage({
   );
   const [copyEmployee, setCopyEmployee] = useState("ALL");
   const [copyApplyMode, setCopyApplyMode] = useState("overwrite");
+  const activeEmployees = employees.filter(
+    (employee) => employee.isActive !== false && !employee.deletedAt,
+  );
 
   const startOfMonth = currentDate.startOf("month");
   const endOfMonth = currentDate.endOf("month");
@@ -174,6 +178,8 @@ function CalendarPage({
   const repeatWeeks = getWeekChunks(repeatStartDate, repeatEndDate);
 
   const handleOpenRepeatForm = () => {
+    if (!canManage) return;
+
     setSelectedDate(null);
     setIsFormOpen(false);
     setIsCopyFormOpen(false);
@@ -188,6 +194,8 @@ function CalendarPage({
   };
 
   const handleOpenCopyForm = () => {
+    if (!canManage) return;
+
     const sourceMonth = currentDate.subtract(1, "month");
     const targetMonth = currentDate;
 
@@ -572,6 +580,8 @@ function CalendarPage({
   };
 
   const handleOpenEditForm = (date, index, schedule) => {
+    if (!canManage) return;
+
     setFormDate(date);
     setSelectedEmployee(schedule.name);
     setSelectedShiftType(schedule.type);
@@ -582,50 +592,75 @@ function CalendarPage({
     setEndTime(getShiftType(schedule.type)?.endTime || "");
   };
 
-  return (
-    <div>
+  if (!canManage && activeEmployees.length === 0) {
+    return (
       <div
         style={{
-          display: "flex",
-          gap: "8px",
-          justifyContent: "flex-end",
-          marginBottom: "12px",
+          background: "#fff",
+          border: "1px solid #e9ecef",
+          borderRadius: "16px",
+          padding: "22px 18px",
+          textAlign: "center",
+          color: "#495057",
+          lineHeight: "1.5",
         }}
       >
-        <button
-          onClick={handleOpenRepeatForm}
-          style={{
-            border: "none",
-            background: "#e7f5ff",
-            color: "#1971c2",
-            borderRadius: "10px",
-            padding: "9px 12px",
-            fontWeight: "800",
-            fontSize: "14px",
-            cursor: "pointer",
-            whiteSpace: "nowrap",
-          }}
-        >
-          반복 등록
-        </button>
-
-        <button
-          onClick={handleOpenCopyForm}
-          style={{
-            border: "none",
-            background: "#f1f3f5",
-            color: "#495057",
-            borderRadius: "10px",
-            padding: "9px 12px",
-            fontWeight: "800",
-            fontSize: "14px",
-            cursor: "pointer",
-            whiteSpace: "nowrap",
-          }}
-        >
-          근무표 복사
-        </button>
+        <div style={{ fontSize: "18px", fontWeight: "900", color: "#191f28" }}>
+          연결된 직원 정보가 없습니다.
+        </div>
+        <div style={{ marginTop: "8px", fontSize: "14px", fontWeight: "700" }}>
+          관리자에게 내 계정과 직원명을 연결해달라고 요청해주세요.
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <div>
+      {canManage && (
+        <div
+          style={{
+            display: "flex",
+            gap: "8px",
+            justifyContent: "flex-end",
+            marginBottom: "12px",
+          }}
+        >
+          <button
+            onClick={handleOpenRepeatForm}
+            style={{
+              border: "none",
+              background: "#e7f5ff",
+              color: "#1971c2",
+              borderRadius: "10px",
+              padding: "9px 12px",
+              fontWeight: "800",
+              fontSize: "14px",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            반복 등록
+          </button>
+
+          <button
+            onClick={handleOpenCopyForm}
+            style={{
+              background: "#fff",
+              color: "#495057",
+              border: "1px solid #e9ecef",
+              borderRadius: "10px",
+              padding: "9px 12px",
+              fontWeight: "800",
+              fontSize: "14px",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            근무표 복사
+          </button>
+        </div>
+      )}
 
       <div
         style={{
@@ -719,7 +754,7 @@ function CalendarPage({
             >
               {shiftType.startTime && shiftType.endTime
                 ? formatShortTimeRange(shiftType.startTime, shiftType.endTime)
-                : "휴무/연차/기타"}
+                : "비근무"}
             </span>
           </div>
         ))}
@@ -903,11 +938,12 @@ function CalendarPage({
                   >
                     <div
                       onClick={() =>
+                        canManage &&
                         handleOpenEditForm(selectedDate, idx, schedule)
                       }
                       style={{
                         flex: 1,
-                        cursor: "pointer",
+                        cursor: canManage ? "pointer" : "default",
                       }}
                     >
                       <div style={{ fontWeight: "bold" }}>
@@ -952,57 +988,61 @@ function CalendarPage({
                         {schedule.type}
                       </div>
 
-                      <button
-                        onClick={() => handleDeleteSchedule(selectedDate, idx)}
-                        style={{
-                          border: "none",
-                          background: "#fff5f5",
-                          color: "#fa5252",
-                          borderRadius: "999px",
-                          width: "32px",
-                          height: "32px",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <FiTrash2 size={16} />
-                      </button>
+                      {canManage && (
+                        <button
+                          onClick={() => handleDeleteSchedule(selectedDate, idx)}
+                          style={{
+                            border: "none",
+                            background: "#fff5f5",
+                            color: "#fa5252",
+                            borderRadius: "999px",
+                            width: "32px",
+                            height: "32px",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <FiTrash2 size={16} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
             )}
 
-            <button
-              onClick={() => {
-                const defaultShiftType = shiftTypes[0];
+            {canManage && (
+              <button
+                onClick={() => {
+                  const defaultShiftType = shiftTypes[0];
 
-                setFormDate(selectedDate);
-                setSelectedEmployee("");
-                setSelectedShiftType(defaultShiftType?.name || "");
-                setStartTime(defaultShiftType?.startTime || "");
-                setEndTime(defaultShiftType?.endTime || "");
-                setEditIndex(null);
-                setSelectedDate(null);
-                setIsFormOpen(true);
-              }}
-              style={{
-                width: "100%",
-                marginTop: "16px",
-                border: "none",
-                background: "#3182f6",
-                color: "#fff",
-                borderRadius: "12px",
-                padding: "14px",
-                fontWeight: "bold",
-                fontSize: "16px",
-                cursor: "pointer",
-              }}
-            >
-              + 근무 등록
-            </button>
+                  setFormDate(selectedDate);
+                  setSelectedEmployee("");
+                  setSelectedShiftType(defaultShiftType?.name || "");
+                  setStartTime(defaultShiftType?.startTime || "");
+                  setEndTime(defaultShiftType?.endTime || "");
+                  setEditIndex(null);
+                  setSelectedDate(null);
+                  setIsFormOpen(true);
+                }}
+                style={{
+                  width: "100%",
+                  marginTop: "16px",
+                  border: "none",
+                  background: "#3182f6",
+                  color: "#fff",
+                  borderRadius: "12px",
+                  padding: "14px",
+                  fontWeight: "bold",
+                  fontSize: "16px",
+                  cursor: "pointer",
+                }}
+              >
+                + 근무 등록
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -1083,7 +1123,7 @@ function CalendarPage({
                     }}
                   >
                     <option value="">직원 선택</option>
-                    {employees.map((employee) => (
+                    {activeEmployees.map((employee) => (
                       <option key={employee.id} value={employee.name}>
                         {employee.name}
                       </option>
@@ -1149,9 +1189,9 @@ function CalendarPage({
                 background: "#3182f6",
                 color: "#fff",
                 borderRadius: "12px",
-                padding: "14px",
+                padding: "12px",
                 fontWeight: "bold",
-                fontSize: "16px",
+                fontSize: "15px",
                 cursor: "pointer",
               }}
             >
@@ -1182,11 +1222,11 @@ function CalendarPage({
             style={{
               width: "calc(100% - 40px)",
               maxWidth: "380px",
-              maxHeight: "calc(100vh - 60px)",
+              maxHeight: "calc(100vh - 36px)",
               overflowY: "auto",
               background: "#fff",
-              borderRadius: "20px",
-              padding: "20px",
+              borderRadius: "18px",
+              padding: "16px",
               border: "1px solid #e9ecef",
               boxShadow: "none",
             }}
@@ -1196,10 +1236,10 @@ function CalendarPage({
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                marginBottom: "18px",
+                marginBottom: "12px",
               }}
             >
-              <h3>반복 등록</h3>
+              <h3 style={{ fontSize: "20px" }}>반복 등록</h3>
 
               <button
                 onClick={() => setIsRepeatFormOpen(false)}
@@ -1214,39 +1254,58 @@ function CalendarPage({
               </button>
             </div>
 
-            <div style={{ marginBottom: "14px" }}>
-              <div style={{ marginBottom: "8px", fontSize: "14px" }}>
-                직원명
-              </div>
-
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+                gap: "8px",
+                marginBottom: "10px",
+              }}
+            >
               <select
                 value={repeatEmployee}
                 onChange={(e) => setRepeatEmployee(e.target.value)}
                 style={{
                   width: "100%",
-                  padding: "12px",
+                  minWidth: 0,
+                  padding: "9px 10px",
                   borderRadius: "10px",
-                  border: "1px solid #ddd",
+                  border: "1px solid #dfe3e8",
+                  fontSize: "13px",
+                  fontWeight: "800",
                 }}
               >
                 <option value="">직원 선택</option>
-                {employees.map((employee) => (
+                {activeEmployees.map((employee) => (
                   <option key={employee.id} value={employee.name}>
                     {employee.name}
                   </option>
                 ))}
               </select>
+
+              <select
+                value={repeatApplyMode}
+                onChange={(e) => setRepeatApplyMode(e.target.value)}
+                style={{
+                  width: "100%",
+                  minWidth: 0,
+                  padding: "9px 10px",
+                  borderRadius: "10px",
+                  border: "1px solid #dfe3e8",
+                  fontSize: "13px",
+                  fontWeight: "800",
+                }}
+              >
+                <option value="overwrite">덮어쓰기</option>
+                <option value="empty">빈 날짜만</option>
+              </select>
             </div>
 
-            <div style={{ marginBottom: "16px" }}>
-              <div style={{ marginBottom: "8px", fontSize: "14px" }}>
-                기간
-              </div>
-
+            <div style={{ marginBottom: "10px" }}>
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
+                  gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
                   gap: "8px",
                 }}
               >
@@ -1256,9 +1315,12 @@ function CalendarPage({
                   onChange={(e) => setRepeatStartDate(e.target.value)}
                   style={{
                     width: "100%",
-                    padding: "12px",
+                    minWidth: 0,
+                    padding: "9px 8px",
                     borderRadius: "10px",
-                    border: "1px solid #ddd",
+                    border: "1px solid #dfe3e8",
+                    fontSize: "12px",
+                    fontWeight: "800",
                   }}
                 />
                 <input
@@ -1267,23 +1329,22 @@ function CalendarPage({
                   onChange={(e) => setRepeatEndDate(e.target.value)}
                   style={{
                     width: "100%",
-                    padding: "12px",
+                    minWidth: 0,
+                    padding: "9px 8px",
                     borderRadius: "10px",
-                    border: "1px solid #ddd",
+                    border: "1px solid #dfe3e8",
+                    fontSize: "12px",
+                    fontWeight: "800",
                   }}
                 />
               </div>
             </div>
 
-            <div style={{ marginBottom: "16px" }}>
-              <div style={{ marginBottom: "8px", fontSize: "14px" }}>
-                등록 방식
-              </div>
-
+            <div style={{ marginBottom: "10px" }}>
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
+                  gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
                   gap: "8px",
                 }}
               >
@@ -1291,7 +1352,7 @@ function CalendarPage({
                   onClick={() => setRepeatMode("direct")}
                   style={getSegmentButtonStyle(repeatMode === "direct")}
                 >
-                  요일 직접 선택
+                  요일 직접
                 </button>
                 <button
                   onClick={() => setRepeatMode("pattern")}
@@ -1307,8 +1368,8 @@ function CalendarPage({
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  gap: "8px",
-                  marginBottom: "18px",
+                  gap: "6px",
+                  marginBottom: "12px",
                 }}
               >
                 {weekdayLabels.map((label, index) => (
@@ -1330,8 +1391,8 @@ function CalendarPage({
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  gap: "8px",
-                  marginBottom: "18px",
+                  gap: "6px",
+                  marginBottom: "12px",
                 }}
               >
                 {patternTemplates.length > 0 &&
@@ -1448,26 +1509,6 @@ function CalendarPage({
                 )}
               </div>
             )}
-
-            <div style={{ marginBottom: "18px" }}>
-              <div style={{ marginBottom: "8px", fontSize: "14px" }}>
-                적용 방식
-              </div>
-
-              <select
-                value={repeatApplyMode}
-                onChange={(e) => setRepeatApplyMode(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "12px",
-                  borderRadius: "10px",
-                  border: "1px solid #ddd",
-                }}
-              >
-                <option value="overwrite">기존 스케줄 덮어쓰기</option>
-                <option value="empty">빈 날짜에만 등록</option>
-              </select>
-            </div>
 
             <button
               onClick={handleSaveRepeatSchedules}
@@ -1780,7 +1821,7 @@ function CalendarPage({
                 }}
               >
                 <option value="ALL">전체 직원</option>
-                {employees.map((employee) => (
+                {activeEmployees.map((employee) => (
                   <option key={employee.id} value={employee.name}>
                     {employee.name}
                   </option>
@@ -1925,7 +1966,8 @@ function getSegmentButtonStyle(isActive) {
     background: isActive ? "#3182f6" : "#f1f3f5",
     color: isActive ? "#fff" : "#495057",
     borderRadius: "10px",
-    padding: "10px",
+    padding: "9px",
+    fontSize: "13px",
     fontWeight: "800",
     cursor: "pointer",
   };
@@ -1936,18 +1978,18 @@ function RepeatSelectRow({ label, value, onChange, shiftTypes }) {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "82px 1fr",
+        gridTemplateColumns: "62px 1fr",
         alignItems: "center",
-        gap: "8px",
+        gap: "6px",
         background: "#f8f9fb",
         borderRadius: "10px",
-        padding: "10px",
+        padding: "7px 8px",
       }}
     >
       <div
         style={{
-          fontSize: "13px",
-          fontWeight: "800",
+          fontSize: "12px",
+          fontWeight: "900",
           color: "#495057",
         }}
       >
@@ -1959,9 +2001,11 @@ function RepeatSelectRow({ label, value, onChange, shiftTypes }) {
         onChange={(e) => onChange(e.target.value)}
         style={{
           width: "100%",
-          padding: "10px",
-          borderRadius: "10px",
-          border: "1px solid #ddd",
+          padding: "7px 8px",
+          borderRadius: "9px",
+          border: "1px solid #dfe3e8",
+          fontSize: "12px",
+          fontWeight: "800",
         }}
       >
         <option value="">등록 안 함</option>
