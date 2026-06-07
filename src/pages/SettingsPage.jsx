@@ -51,7 +51,6 @@ const shouldOpenPatternForm = () =>
 function SettingsPage({
   shiftTypes,
   setShiftTypes,
-  employees = [],
   schedules = {},
   setSchedules,
   patternTemplates = [],
@@ -76,7 +75,6 @@ function SettingsPage({
   const [patternDays, setPatternDays] = useState(Array(7).fill(""));
   const [draggedShiftName, setDraggedShiftName] = useState(null);
   const [processingMemberId, setProcessingMemberId] = useState(null);
-  const [memberEmployeeMap, setMemberEmployeeMap] = useState({});
   const [isPatternHelpOpen, setIsPatternHelpOpen] =
     useState(shouldOpenPatternForm);
 
@@ -383,17 +381,10 @@ function SettingsPage({
   const handleApproveMember = async (userId) => {
     if (!onApproveMember) return;
 
-    const employeeId = memberEmployeeMap[userId];
-
-    if (!employeeId) {
-      alert("승인할 사용자의 직원명을 선택해주세요.");
-      return;
-    }
-
     setProcessingMemberId(userId);
 
     try {
-      await onApproveMember(userId, employeeId);
+      await onApproveMember(userId);
     } catch (error) {
       alert(error.message || "참여 요청을 승인하지 못했습니다.");
     } finally {
@@ -584,21 +575,12 @@ function SettingsPage({
             </div>
           </div>
 
-          {pendingMembers.map((member) => {
-            const selectedEmployeeId = memberEmployeeMap[member.userId] || "";
-            const linkableEmployees = employees.filter(
-              (employee) =>
-                employee.isActive !== false &&
-                !employee.deletedAt &&
-                (!employee.userId || employee.id === selectedEmployeeId),
-            );
-
-            return (
+          {pendingMembers.map((member) => (
             <div
               key={member.userId}
               style={{
-                display: "grid",
-                gridTemplateColumns: "minmax(0, 1fr) auto",
+                display: "flex",
+                justifyContent: "space-between",
                 alignItems: "center",
                 gap: "10px",
                 background: "#f8f9fb",
@@ -628,34 +610,33 @@ function SettingsPage({
                     marginTop: "4px",
                   }}
                 >
-                  승인 후 선택한 직원의 근무만 볼 수 있습니다.
+                  요청 직원: {member.employeeName}
                 </div>
-                <select
-                  value={selectedEmployeeId}
-                  onChange={(e) =>
-                    setMemberEmployeeMap((prev) => ({
-                      ...prev,
-                      [member.userId]: e.target.value,
-                    }))
-                  }
+                {member.employeeEmail && (
+                  <div
+                    style={{
+                      color: "#868e96",
+                      fontSize: "11px",
+                      fontWeight: "700",
+                      marginTop: "3px",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {member.employeeEmail}
+                  </div>
+                )}
+                <div
                   style={{
-                    width: "100%",
-                    marginTop: "8px",
-                    padding: "9px 10px",
-                    borderRadius: "10px",
-                    border: "1px solid #dfe3e8",
-                    background: "#fff",
-                    fontSize: "13px",
-                    fontWeight: "800",
+                    color: "#adb5bd",
+                    fontSize: "11px",
+                    fontWeight: "700",
+                    marginTop: "3px",
                   }}
                 >
-                  <option value="">연결할 직원 선택</option>
-                  {linkableEmployees.map((employee) => (
-                    <option key={employee.id} value={employee.id}>
-                      {employee.name}
-                    </option>
-                  ))}
-                </select>
+                  승인 전까지 스케줄을 볼 수 없습니다.
+                </div>
               </div>
 
               <div
@@ -701,8 +682,7 @@ function SettingsPage({
                 </button>
               </div>
             </div>
-            );
-          })}
+          ))}
         </div>
       )}
 

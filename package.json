@@ -10,7 +10,11 @@
     "preview": "vite preview",
     "android:sync": "npm run build && cap sync android",
     "android:open": "cap open android",
-    "android:build:debug": "npm run build && cap sync android && cd android && ./gradlew assembleDebug"
+    "android:build:debug": "npm run build && cap sync android && cd android && ./gradlew assembleDebug",
+    "android:run": "npm run android:sync && cap run android",
+    "android:studio": "npm run android:sync && cap open android",
+    "android:build:apk": "npm run android:sync && cd android && ./gradlew assembleDebug",
+    "android:build:aab": "npm run android:sync && cd android && ./gradlew bundleRelease"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.0",

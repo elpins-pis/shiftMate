@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { FiMenu, FiRefreshCcw, FiTrash2 } from "react-icons/fi";
+import { FiEdit2, FiMenu, FiRefreshCcw, FiTrash2 } from "react-icons/fi";
 import {
   createEmployee,
   deactivateEmployee,
   deleteEmployeeWithSchedules,
   hideEmployee,
   restoreEmployee,
+  updateEmployee,
   updateEmployeeOrder,
 } from "../services/workspaceService";
 
@@ -19,7 +20,12 @@ function EmployeesPage({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
   const [newRole, setNewRole] = useState("USER");
+  const [editTarget, setEditTarget] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editRole, setEditRole] = useState("USER");
   const [draggedEmployeeId, setDraggedEmployeeId] = useState(null);
   const [showInactiveEmployees, setShowInactiveEmployees] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -39,6 +45,16 @@ function EmployeesPage({
       return;
     }
 
+    if (!newEmail.trim()) {
+      alert("직원 이메일을 입력해주세요.");
+      return;
+    }
+
+    if (!isValidEmail(newEmail)) {
+      alert("이메일 형식을 확인해주세요.");
+      return;
+    }
+
     const isDuplicate = employees.some(
       (employee) => !employee.deletedAt && employee.name === newName.trim(),
     );
@@ -48,12 +64,24 @@ function EmployeesPage({
       return;
     }
 
+    const isDuplicateEmail = employees.some(
+      (employee) =>
+        !employee.deletedAt &&
+        normalizeEmail(employee.email) === normalizeEmail(newEmail),
+    );
+
+    if (isDuplicateEmail) {
+      alert("이미 등록된 이메일입니다.");
+      return;
+    }
+
     try {
       if (workspace?.id) {
         await createEmployee(
           workspace.id,
           {
             name: newName.trim(),
+            email: newEmail,
             role: newRole,
           },
           employees.length,
@@ -65,6 +93,7 @@ function EmployeesPage({
           {
             id: Date.now(),
             name: newName.trim(),
+            email: normalizeEmail(newEmail),
             role: newRole,
             isActive: true,
           },
@@ -72,10 +101,96 @@ function EmployeesPage({
       }
 
       setNewName("");
+      setNewEmail("");
       setNewRole("USER");
       setIsOpen(false);
     } catch (error) {
-      alert(error.message || "직원을 저장하지 못했습니다.");
+      alert(getEmployeeSaveErrorMessage(error, "직원을 저장하지 못했습니다."));
+    }
+  };
+
+  const handleOpenEditEmployee = (employee) => {
+    setEditTarget(employee);
+    setEditName(employee.name);
+    setEditEmail(employee.email || "");
+    setEditRole(employee.role);
+  };
+
+  const handleSaveEditEmployee = async () => {
+    if (!editTarget) return;
+
+    if (!editName.trim()) {
+      alert("직원명을 입력해주세요.");
+      return;
+    }
+
+    if (!editEmail.trim()) {
+      alert("직원 이메일을 입력해주세요.");
+      return;
+    }
+
+    if (!isValidEmail(editEmail)) {
+      alert("이메일 형식을 확인해주세요.");
+      return;
+    }
+
+    const isDuplicateName = employees.some(
+      (employee) =>
+        employee.id !== editTarget.id &&
+        !employee.deletedAt &&
+        employee.name === editName.trim(),
+    );
+
+    if (isDuplicateName) {
+      alert("이미 등록된 직원명입니다.");
+      return;
+    }
+
+    const isDuplicateEmail = employees.some(
+      (employee) =>
+        employee.id !== editTarget.id &&
+        !employee.deletedAt &&
+        normalizeEmail(employee.email) === normalizeEmail(editEmail),
+    );
+
+    if (isDuplicateEmail) {
+      alert("이미 등록된 이메일입니다.");
+      return;
+    }
+
+    try {
+      if (workspace?.id) {
+        await updateEmployee(editTarget.id, {
+          workspaceId: workspace.id,
+          name: editName.trim(),
+          email: editEmail,
+          role: editRole,
+          sortOrder: employees.findIndex(
+            (employee) => employee.id === editTarget.id,
+          ),
+        });
+        onDataChanged?.();
+      } else {
+        setEmployees((prev) =>
+          prev.map((employee) =>
+            employee.id === editTarget.id
+              ? {
+                  ...employee,
+                  name: editName.trim(),
+                  email: normalizeEmail(editEmail),
+                  role: editRole,
+                }
+              : employee,
+          ),
+        );
+      }
+
+      setEditTarget(null);
+      setEditName("");
+      setEditEmail("");
+      setEditRole("USER");
+    } catch (error) {
+      alert(getEmployeeSaveErrorMessage(error, "직원 정보를 수정하지 못했습니다."));
     }
   };
 
@@ -287,13 +402,22 @@ function EmployeesPage({
                 onDrop={handleDropEmployee}
                 onDragEnd={() => setDraggedEmployeeId(null)}
                 action={
-                  <button
-                    onClick={() => handleDeactivateEmployee(employee.id)}
-                    aria-label={`${employee.name} 이전 직원으로 변경`}
-                    style={iconButtonStyle(dangerIconButtonStyle)}
-                  >
-                    <FiTrash2 size={16} />
-                  </button>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <button
+                      onClick={() => handleOpenEditEmployee(employee)}
+                      aria-label={`${employee.name} 수정`}
+                      style={iconButtonStyle(editIconButtonStyle)}
+                    >
+                      <FiEdit2 size={15} />
+                    </button>
+                    <button
+                      onClick={() => handleDeactivateEmployee(employee.id)}
+                      aria-label={`${employee.name} 이전 직원으로 변경`}
+                      style={iconButtonStyle(dangerIconButtonStyle)}
+                    >
+                      <FiTrash2 size={16} />
+                    </button>
+                  </div>
                 }
               />
             ))
@@ -431,13 +555,33 @@ function EmployeesPage({
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="예: 김민수"
-                style={{
-                  width: "100%",
-                  padding: "12px",
-                  borderRadius: "10px",
-                  border: "1px solid #ddd",
-                }}
+                style={fieldStyle}
               />
+            </div>
+
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ marginBottom: "8px", fontSize: "14px" }}>
+                이메일
+              </div>
+
+              <input
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="name@example.com"
+                style={fieldStyle}
+              />
+              <div
+                style={{
+                  color: "#868e96",
+                  fontSize: "12px",
+                  fontWeight: "700",
+                  lineHeight: "1.35",
+                  marginTop: "6px",
+                }}
+              >
+                직원이 이 이메일로 가입하면 자동으로 연결됩니다.
+              </div>
             </div>
 
             <div style={{ marginBottom: "20px" }}>
@@ -446,12 +590,7 @@ function EmployeesPage({
               <select
                 value={newRole}
                 onChange={(e) => setNewRole(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "12px",
-                  borderRadius: "10px",
-                  border: "1px solid #ddd",
-                }}
+                style={fieldStyle}
               >
                 <option value="USER">사용자</option>
                 <option value="ADMIN">관리자</option>
@@ -460,6 +599,110 @@ function EmployeesPage({
 
             <button
               onClick={handleAddEmployee}
+              style={{
+                width: "100%",
+                border: "none",
+                background: "#3182f6",
+                color: "#fff",
+                borderRadius: "12px",
+                padding: "14px",
+                fontWeight: "bold",
+                fontSize: "16px",
+                cursor: "pointer",
+              }}
+            >
+              저장
+            </button>
+          </div>
+        </div>
+      )}
+
+      {editTarget && (
+        <div
+          onClick={() => setEditTarget(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 105,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "transparent",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "calc(100% - 40px)",
+              maxWidth: "360px",
+              background: "#fff",
+              borderRadius: "20px",
+              padding: "20px",
+              border: "1px solid #e9ecef",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "20px",
+              }}
+            >
+              <h3>직원 정보 수정</h3>
+
+              <button
+                onClick={() => setEditTarget(null)}
+                aria-label="닫기"
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  fontSize: "20px",
+                  cursor: "pointer",
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ marginBottom: "8px", fontSize: "14px" }}>
+                직원명
+              </div>
+              <input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                style={fieldStyle}
+              />
+            </div>
+
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ marginBottom: "8px", fontSize: "14px" }}>
+                이메일
+              </div>
+              <input
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                placeholder="name@example.com"
+                style={fieldStyle}
+              />
+            </div>
+
+            <div style={{ marginBottom: "20px" }}>
+              <div style={{ marginBottom: "8px", fontSize: "14px" }}>권한</div>
+              <select
+                value={editRole}
+                onChange={(e) => setEditRole(e.target.value)}
+                style={fieldStyle}
+              >
+                <option value="USER">사용자</option>
+                <option value="ADMIN">관리자</option>
+              </select>
+            </div>
+
+            <button
+              onClick={handleSaveEditEmployee}
               style={{
                 width: "100%",
                 border: "none",
@@ -609,6 +852,19 @@ function EmployeeCard({
 
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: "bold" }}>{employee.name}</div>
+          <div
+            style={{
+              color: employee.email ? "#868e96" : "#d9480f",
+              fontSize: "12px",
+              fontWeight: "800",
+              marginTop: "3px",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {employee.email || "이메일 미등록"}
+          </div>
           <div
             style={{
               alignItems: "center",
@@ -782,6 +1038,34 @@ function formatDate(date) {
   return String(date).slice(0, 10).replaceAll("-", ".");
 }
 
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim());
+}
+
+function getEmployeeSaveErrorMessage(error, fallbackMessage) {
+  if (error.message === "Employee name already exists") {
+    return "이미 등록된 직원명입니다.";
+  }
+
+  if (error.message === "Employee email already exists") {
+    return "이미 등록된 이메일입니다.";
+  }
+
+  if (error.message === "Employee email required") {
+    return "직원 이메일을 입력해주세요.";
+  }
+
+  if (error.message === "Admin permission required") {
+    return "관리자 권한이 필요합니다.";
+  }
+
+  return error.message || fallbackMessage;
+}
+
 function iconButtonStyle({ background, color }) {
   return {
     border: "none",
@@ -802,9 +1086,30 @@ const dangerIconButtonStyle = {
   color: "#fa5252",
 };
 
+const editIconButtonStyle = {
+  background: "#edf4ff",
+  color: "#3182f6",
+};
+
 const restoreIconButtonStyle = {
   background: "#edf4ff",
   color: "#3182f6",
+};
+
+const fieldStyle = {
+  width: "100%",
+  minWidth: 0,
+  minHeight: "38px",
+  padding: "9px 10px",
+  paddingRight: "26px",
+  borderRadius: "10px",
+  border: "1px solid #dfe3e8",
+  background: "#fff",
+  color: "#191f28",
+  fontSize: "13px",
+  fontWeight: "800",
+  lineHeight: "1.2",
+  opacity: 1,
 };
 
 const secondaryButtonStyle = {

@@ -7,7 +7,7 @@ import {
 } from "../services/workspaceService";
 
 function WorkspaceSetupPage({ onComplete }) {
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const [workspaceName, setWorkspaceName] = useState("내 근무표");
   const [inviteCode, setInviteCode] = useState("");
   const [message, setMessage] = useState("");
@@ -44,11 +44,7 @@ function WorkspaceSetupPage({ onComplete }) {
       await joinWorkspaceByInviteCode(inviteCode);
       onComplete();
     } catch (error) {
-      setMessage(
-        error.message === "Invalid invite code"
-          ? "초대 코드를 찾을 수 없습니다."
-          : error.message || "근무표에 참여하지 못했습니다.",
-      );
+      setMessage(getJoinErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
@@ -132,6 +128,34 @@ function WorkspaceSetupPage({ onComplete }) {
       <section style={{ ...sectionStyle, marginTop: "12px" }}>
         <h2 style={titleStyle}>초대 코드로 참여</h2>
         <form onSubmit={handleJoinWorkspace}>
+          <div
+            style={{
+              background: "#f8f9fb",
+              borderRadius: "12px",
+              color: "#495057",
+              fontSize: "12px",
+              fontWeight: "800",
+              lineHeight: "1.45",
+              marginBottom: "10px",
+              padding: "10px",
+            }}
+          >
+            현재 로그인 이메일
+            <strong
+              style={{
+                color: "#191f28",
+                display: "block",
+                fontSize: "13px",
+                marginTop: "2px",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {user?.email || "이메일 확인 중"}
+            </strong>
+          </div>
+
           <input
             value={inviteCode}
             onChange={(event) => setInviteCode(event.target.value.toUpperCase())}
@@ -143,6 +167,7 @@ function WorkspaceSetupPage({ onComplete }) {
               textTransform: "uppercase",
             }}
           />
+
           <button
             type="submit"
             disabled={isSubmitting}
@@ -151,7 +176,7 @@ function WorkspaceSetupPage({ onComplete }) {
               background: "#191f28",
             }}
           >
-            직원으로 참여하기
+            참여 요청 보내기
           </button>
         </form>
       </section>
@@ -210,5 +235,21 @@ const primaryButtonStyle = {
   fontWeight: "900",
   padding: "13px",
 };
+
+function getJoinErrorMessage(error) {
+  if (error.message === "Invalid invite code") {
+    return "초대 코드를 찾을 수 없습니다.";
+  }
+
+  if (error.message === "Employee email not registered") {
+    return "현재 로그인 이메일과 일치하는 직원이 없습니다. 관리자에게 직원 이메일 등록을 요청해주세요.";
+  }
+
+  if (error.message === "Employee already selected") {
+    return "이미 다른 계정과 연결된 직원 이메일입니다. 관리자에게 확인해주세요.";
+  }
+
+  return error.message || "근무표에 참여하지 못했습니다.";
+}
 
 export default WorkspaceSetupPage;

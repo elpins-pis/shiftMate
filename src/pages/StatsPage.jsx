@@ -6,7 +6,12 @@ const NIGHT_WORK_RANGES = [
   [22 * 60, 30 * 60],
 ];
 
-function StatsPage({ schedules = {}, employees = [] }) {
+function StatsPage({
+  schedules = {},
+  employees = [],
+  memberRole,
+  currentEmployeeId,
+}) {
   const [mode, setMode] = useState("month");
   const [selectedEmployee, setSelectedEmployee] = useState("ALL");
   const [selectedWeekStartDate, setSelectedWeekStartDate] = useState(
@@ -40,6 +45,14 @@ function StatsPage({ schedules = {}, employees = [] }) {
     periodStart,
     periodEnd,
   });
+  const isAdmin = memberRole === "ADMIN";
+  const currentEmployee = employees.find(
+    (employee) => String(employee.id) === String(currentEmployeeId),
+  );
+  const currentEmployeeName = currentEmployee?.name || "";
+  const effectiveSelectedEmployee = isAdmin
+    ? selectedEmployee
+    : currentEmployeeName || "__NO_LINKED_EMPLOYEE__";
 
   const filteredSchedules = Object.entries(schedules).flatMap(
     ([date, dailySchedules]) => {
@@ -53,7 +66,8 @@ function StatsPage({ schedules = {}, employees = [] }) {
       return dailySchedules
         .filter(
           (schedule) =>
-            selectedEmployee === "ALL" || schedule.name === selectedEmployee,
+            effectiveSelectedEmployee === "ALL" ||
+            schedule.name === effectiveSelectedEmployee,
         )
         .map((schedule) => ({
           ...schedule,
@@ -122,13 +136,14 @@ function StatsPage({ schedules = {}, employees = [] }) {
     },
   );
 
-  const isEmployeeSelected = selectedEmployee !== "ALL";
+  const isEmployeeSelected = effectiveSelectedEmployee !== "ALL";
   const allEmployeeStats = (
     isEmployeeSelected
       ? [
           [
-            selectedEmployee,
-            stats.byEmployee[selectedEmployee] || createEmptyEmployeeStat(),
+            effectiveSelectedEmployee,
+            stats.byEmployee[effectiveSelectedEmployee] ||
+              createEmptyEmployeeStat(),
           ],
         ]
       : employees.length > 0
@@ -175,6 +190,21 @@ function StatsPage({ schedules = {}, employees = [] }) {
         </option>
       ))}
     </select>
+  );
+  const employeeFilterControl = isAdmin ? (
+    employeeSelect
+  ) : (
+    <div
+      style={{
+        ...inputStyle,
+        alignItems: "center",
+        background: "#f8f9fb",
+        display: "flex",
+        fontWeight: "900",
+      }}
+    >
+      {currentEmployeeName ? `내 통계 · ${currentEmployeeName}` : "직원 연결 없음"}
+    </div>
   );
 
   const hasNightWork = visibleStats.totalNightWorkMinutes > 0;
@@ -338,7 +368,7 @@ function StatsPage({ schedules = {}, employees = [] }) {
             </div>
 
             <div style={{ minWidth: 0 }}>
-              {employeeSelect}
+              {employeeFilterControl}
             </div>
           </div>
         ) : (
@@ -366,7 +396,7 @@ function StatsPage({ schedules = {}, employees = [] }) {
 
         {mode !== "month" && (
           <div style={{ marginTop: "10px" }}>
-            {employeeSelect}
+            {employeeFilterControl}
           </div>
         )}
       </section>
@@ -1151,14 +1181,17 @@ function CompactStat({ label, value, detail, color }) {
 const inputStyle = {
   width: "100%",
   minWidth: 0,
-  minHeight: "42px",
-  padding: "9px 10px",
+  minHeight: "38px",
+  padding: "8px 7px",
+  paddingRight: "24px",
   background: "#fff",
   borderRadius: "10px",
   border: "1px solid #dfe3e8",
   color: "#191f28",
-  fontSize: "12px",
+  fontSize: "11px",
   fontWeight: "800",
+  lineHeight: "1.2",
+  opacity: 1,
 };
 
 function getModeButtonStyle(isActive) {

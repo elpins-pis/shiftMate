@@ -38,6 +38,7 @@ create table public.workspace_members (
   user_id uuid not null references auth.users(id) on delete cascade,
   role text not null check (role in ('ADMIN', 'USER', 'PENDING')),
   user_email text,
+  employee_id uuid,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   primary key (workspace_id, user_id)
@@ -47,8 +48,8 @@ create table public.employees (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
   name text not null,
+  email text,
   role text not null default 'USER' check (role in ('ADMIN', 'USER')),
-  user_id uuid references auth.users(id) on delete set null,
   is_active boolean not null default true,
   inactive_at date,
   deleted_at timestamptz,
@@ -99,6 +100,12 @@ create table public.schedules (
     references public.shift_types(workspace_id, id)
 );
 
+alter table public.workspace_members
+add constraint workspace_members_employee_id_fkey
+foreign key (employee_id)
+references public.employees(id)
+on delete set null;
+
 create table public.pattern_templates (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
@@ -129,9 +136,9 @@ create index employees_workspace_id_idx on public.employees(workspace_id);
 create unique index employees_workspace_visible_name_key
 on public.employees(workspace_id, name)
 where deleted_at is null;
-create unique index employees_workspace_user_id_key
-on public.employees(workspace_id, user_id)
-where user_id is not null;
+create unique index employees_workspace_visible_email_key
+on public.employees(workspace_id, lower(email))
+where deleted_at is null and email is not null;
 create index shift_types_workspace_id_idx on public.shift_types(workspace_id);
 create index schedules_workspace_date_idx on public.schedules(workspace_id, work_date);
 create index schedules_employee_date_idx on public.schedules(employee_id, work_date);
@@ -254,6 +261,111 @@ $$;
 
 grant execute on function public.create_workspace(text) to authenticated;
 
+drop function if exists public.save_employee(uuid, uuid, text, text, text, integer);
+
+create or replace function public.save_employee(
+  target_workspace_id uuid,
+  target_employee_id uuid,
+  employee_name text,
+  employee_email text,
+  employee_role text,
+  employee_sort_order integer default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  normalized_name text;
+  normalized_email text;
+  saved_employee_id uuid;
+begin
+  if not public.is_workspace_admin(target_workspace_id) then
+    raise exception 'Admin permission required';
+  end if;
+
+  normalized_name := nullif(trim(employee_name), '');
+  normalized_email := lower(nullif(trim(employee_email), ''));
+
+  if normalized_name is null then
+    raise exception 'Employee name required';
+  end if;
+
+  if normalized_email is null then
+    raise exception 'Employee email required';
+  end if;
+
+  if employee_role not in ('ADMIN', 'USER') then
+    raise exception 'Invalid employee role';
+  end if;
+
+  if exists (
+    select 1
+    from public.employees
+    where workspace_id = target_workspace_id
+      and deleted_at is null
+      and name = normalized_name
+      and (target_employee_id is null or id <> target_employee_id)
+  ) then
+    raise exception 'Employee name already exists';
+  end if;
+
+  if exists (
+    select 1
+    from public.employees
+    where workspace_id = target_workspace_id
+      and deleted_at is null
+      and lower(email) = normalized_email
+      and (target_employee_id is null or id <> target_employee_id)
+  ) then
+    raise exception 'Employee email already exists';
+  end if;
+
+  if target_employee_id is null then
+    insert into public.employees (
+      workspace_id,
+      name,
+      email,
+      role,
+      sort_order,
+      is_active,
+      inactive_at,
+      deleted_at
+    )
+    values (
+      target_workspace_id,
+      normalized_name,
+      normalized_email,
+      employee_role,
+      coalesce(employee_sort_order, 0),
+      true,
+      null,
+      null
+    )
+    returning id into saved_employee_id;
+  else
+    update public.employees
+    set name = normalized_name,
+        email = normalized_email,
+        role = employee_role,
+        sort_order = coalesce(employee_sort_order, sort_order)
+    where id = target_employee_id
+      and workspace_id = target_workspace_id
+      and deleted_at is null
+    returning id into saved_employee_id;
+
+    if saved_employee_id is null then
+      raise exception 'Employee not found';
+    end if;
+  end if;
+
+  return saved_employee_id;
+end;
+$$;
+
+grant execute on function public.save_employee(uuid, uuid, text, text, text, integer) to authenticated;
+
 create or replace function public.join_workspace_by_code(input_invite_code text)
 returns uuid
 language plpgsql
@@ -263,12 +375,19 @@ as $$
 declare
   target_workspace_id uuid;
   normalized_code text;
+  matched_employee_id uuid;
+  user_email text;
 begin
   if auth.uid() is null then
     raise exception 'Authentication required';
   end if;
 
   normalized_code := upper(regexp_replace(coalesce(input_invite_code, ''), '\s+', '', 'g'));
+  user_email := lower(nullif(trim(auth.jwt() ->> 'email'), ''));
+
+  if user_email is null then
+    raise exception 'Email required';
+  end if;
 
   select id into target_workspace_id
   from public.workspaces
@@ -278,9 +397,35 @@ begin
     raise exception 'Invalid invite code';
   end if;
 
-  insert into public.workspace_members (workspace_id, user_id, role, user_email)
-  values (target_workspace_id, auth.uid(), 'PENDING', auth.jwt() ->> 'email')
-  on conflict (workspace_id, user_id) do nothing;
+  select id into matched_employee_id
+  from public.employees
+  where lower(email) = user_email
+      and workspace_id = target_workspace_id
+      and is_active = true
+      and deleted_at is null
+  limit 1;
+
+  if matched_employee_id is null then
+    raise exception 'Employee email not registered';
+  end if;
+
+  if exists (
+    select 1
+    from public.workspace_members
+    where workspace_id = target_workspace_id
+      and employee_id = matched_employee_id
+      and user_id <> auth.uid()
+      and role in ('ADMIN', 'USER', 'PENDING')
+  ) then
+    raise exception 'Employee already selected';
+  end if;
+
+  insert into public.workspace_members (workspace_id, user_id, role, user_email, employee_id)
+  values (target_workspace_id, auth.uid(), 'PENDING', user_email, matched_employee_id)
+  on conflict (workspace_id, user_id) do update
+  set user_email = excluded.user_email,
+      employee_id = excluded.employee_id
+  where public.workspace_members.role = 'PENDING';
 
   return target_workspace_id;
 end;
@@ -290,31 +435,39 @@ grant execute on function public.join_workspace_by_code(text) to authenticated;
 
 create or replace function public.approve_workspace_member(
   target_workspace_id uuid,
-  target_user_id uuid,
-  target_employee_id uuid
+  target_user_id uuid
 )
 returns void
 language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  selected_employee_id uuid;
 begin
   if not public.is_workspace_admin(target_workspace_id) then
     raise exception 'Admin permission required';
   end if;
 
-  if target_employee_id is null then
-    raise exception 'Employee link required';
+  select employee_id into selected_employee_id
+  from public.workspace_members
+  where workspace_id = target_workspace_id
+    and user_id = target_user_id
+    and role = 'PENDING';
+
+  if selected_employee_id is null then
+    raise exception 'Employee selection required';
   end if;
 
-  if not exists (
+  if exists (
     select 1
-    from public.employees
+    from public.workspace_members
     where workspace_id = target_workspace_id
-      and id = target_employee_id
-      and deleted_at is null
+      and employee_id = selected_employee_id
+      and user_id <> target_user_id
+      and role in ('ADMIN', 'USER')
   ) then
-    raise exception 'Employee not found';
+    raise exception 'Employee already approved';
   end if;
 
   update public.workspace_members
@@ -322,15 +475,10 @@ begin
   where workspace_id = target_workspace_id
     and user_id = target_user_id
     and role = 'PENDING';
-
-  update public.employees
-  set user_id = target_user_id
-  where workspace_id = target_workspace_id
-    and id = target_employee_id;
 end;
 $$;
 
-grant execute on function public.approve_workspace_member(uuid, uuid, uuid) to authenticated;
+grant execute on function public.approve_workspace_member(uuid, uuid) to authenticated;
 
 create or replace function public.reject_workspace_member(
   target_workspace_id uuid,
@@ -379,10 +527,7 @@ with check (public.is_workspace_admin(workspace_id));
 
 create policy "members can read employees"
 on public.employees for select
-using (
-  public.is_workspace_admin(workspace_id)
-  or user_id = auth.uid()
-);
+using (public.is_workspace_member(workspace_id));
 
 create policy "admins can manage employees"
 on public.employees for all
@@ -400,16 +545,7 @@ with check (public.is_workspace_admin(workspace_id));
 
 create policy "members can read schedules"
 on public.schedules for select
-using (
-  public.is_workspace_admin(workspace_id)
-  or exists (
-    select 1
-    from public.employees
-    where employees.workspace_id = schedules.workspace_id
-      and employees.id = schedules.employee_id
-      and employees.user_id = auth.uid()
-  )
-);
+using (public.is_workspace_member(workspace_id));
 
 create policy "admins can manage schedules"
 on public.schedules for all
@@ -433,3 +569,5 @@ create policy "admins can manage pattern days"
 on public.pattern_template_days for all
 using (public.is_workspace_admin(workspace_id))
 with check (public.is_workspace_admin(workspace_id));
+
+notify pgrst, 'reload schema';

@@ -19,6 +19,8 @@ function CalendarPage({
   patternTemplates = [],
   onDataChanged,
   canManage = true,
+  memberRole,
+  currentEmployeeId,
 }) {
   const navigate = useNavigate();
   const [currentDate, setCurrentDate] = useState(dayjs());
@@ -70,9 +72,19 @@ function CalendarPage({
   );
   const [copyEmployee, setCopyEmployee] = useState("ALL");
   const [copyApplyMode, setCopyApplyMode] = useState("overwrite");
+  const [scheduleScope, setScheduleScope] = useState("mine");
   const activeEmployees = employees.filter(
     (employee) => employee.isActive !== false && !employee.deletedAt,
   );
+  const isUser = memberRole === "USER";
+  const currentEmployee = employees.find(
+    (employee) => String(employee.id) === String(currentEmployeeId),
+  );
+  const shouldShowMineOnly =
+    isUser && currentEmployeeId && scheduleScope === "mine";
+  const visibleSchedules = shouldShowMineOnly
+    ? filterSchedulesByEmployeeId(schedules, currentEmployeeId)
+    : schedules;
 
   const startOfMonth = currentDate.startOf("month");
   const endOfMonth = currentDate.endOf("month");
@@ -592,29 +604,6 @@ function CalendarPage({
     setEndTime(getShiftType(schedule.type)?.endTime || "");
   };
 
-  if (!canManage && activeEmployees.length === 0) {
-    return (
-      <div
-        style={{
-          background: "#fff",
-          border: "1px solid #e9ecef",
-          borderRadius: "16px",
-          padding: "22px 18px",
-          textAlign: "center",
-          color: "#495057",
-          lineHeight: "1.5",
-        }}
-      >
-        <div style={{ fontSize: "18px", fontWeight: "900", color: "#191f28" }}>
-          연결된 직원 정보가 없습니다.
-        </div>
-        <div style={{ marginTop: "8px", fontSize: "14px", fontWeight: "700" }}>
-          관리자에게 내 계정과 직원명을 연결해달라고 요청해주세요.
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div>
       {canManage && (
@@ -659,6 +648,51 @@ function CalendarPage({
           >
             근무표 복사
           </button>
+        </div>
+      )}
+
+      {isUser && currentEmployeeId && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+            gap: "6px",
+            marginBottom: "12px",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setScheduleScope("mine")}
+            style={getSegmentButtonStyle(scheduleScope === "mine")}
+          >
+            내 근무표
+          </button>
+          <button
+            type="button"
+            onClick={() => setScheduleScope("all")}
+            style={getSegmentButtonStyle(scheduleScope === "all")}
+          >
+            전체 보기
+          </button>
+        </div>
+      )}
+
+      {isUser && !currentEmployeeId && (
+        <div
+          style={{
+            background: "#fff4e6",
+            border: "1px solid #ffe8cc",
+            borderRadius: "12px",
+            color: "#d9480f",
+            fontSize: "12px",
+            fontWeight: "800",
+            lineHeight: "1.4",
+            marginBottom: "12px",
+            padding: "10px",
+          }}
+        >
+          직원 정보가 아직 연결되지 않았습니다. 관리자에게 승인 상태를
+          확인해주세요.
         </div>
       )}
 
@@ -790,7 +824,7 @@ function CalendarPage({
             ? currentDate.date(day).format("YYYY-MM-DD")
             : null;
 
-          const daySchedules = dateKey ? schedules[dateKey] || [] : [];
+          const daySchedules = dateKey ? visibleSchedules[dateKey] || [] : [];
 
           return (
             <div
@@ -911,9 +945,11 @@ function CalendarPage({
 
             <h3 style={{ marginBottom: "16px" }}>{selectedDate}</h3>
 
-            {(schedules[selectedDate] || []).length === 0 ? (
+            {(visibleSchedules[selectedDate] || []).length === 0 ? (
               <div style={{ color: "#888", padding: "20px 0" }}>
-                등록된 스케줄이 없습니다.
+                {scheduleScope === "mine" && currentEmployee?.name
+                  ? `${currentEmployee.name}님의 스케줄이 없습니다.`
+                  : "등록된 스케줄이 없습니다."}
               </div>
             ) : (
               <div
@@ -923,7 +959,7 @@ function CalendarPage({
                   paddingRight: "4px",
                 }}
               >
-                {schedules[selectedDate].map((schedule, idx) => (
+                {visibleSchedules[selectedDate].map((schedule, idx) => (
                   <div
                     key={idx}
                     style={{
@@ -1102,25 +1138,20 @@ function CalendarPage({
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1.05fr 0.95fr",
-                  gap: "8px",
+                  gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+                  gap: "6px",
                   alignItems: "start",
                 }}
               >
-                <div>
-                  <div style={{ marginBottom: "8px", fontSize: "14px" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ marginBottom: "6px", fontSize: "13px" }}>
                     직원명
                   </div>
 
                   <select
                     value={selectedEmployee}
                     onChange={(e) => setSelectedEmployee(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "12px 8px",
-                      borderRadius: "10px",
-                      border: "1px solid #ddd",
-                    }}
+                    style={compactControlStyle}
                   >
                     <option value="">직원 선택</option>
                     {activeEmployees.map((employee) => (
@@ -1131,8 +1162,8 @@ function CalendarPage({
                   </select>
                 </div>
 
-                <div>
-                  <div style={{ marginBottom: "8px", fontSize: "14px" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ marginBottom: "6px", fontSize: "13px" }}>
                     근무 유형
                   </div>
 
@@ -1150,12 +1181,7 @@ function CalendarPage({
                         setEndTime(selectedType.endTime || "");
                       }
                     }}
-                    style={{
-                      width: "100%",
-                      padding: "12px 8px",
-                      borderRadius: "10px",
-                      border: "1px solid #ddd",
-                    }}
+                    style={compactControlStyle}
                   >
                     {shiftTypes.map((shiftType) => (
                       <option key={shiftType.name} value={shiftType.name}>
@@ -1265,15 +1291,7 @@ function CalendarPage({
               <select
                 value={repeatEmployee}
                 onChange={(e) => setRepeatEmployee(e.target.value)}
-                style={{
-                  width: "100%",
-                  minWidth: 0,
-                  padding: "9px 10px",
-                  borderRadius: "10px",
-                  border: "1px solid #dfe3e8",
-                  fontSize: "13px",
-                  fontWeight: "800",
-                }}
+                style={compactControlStyle}
               >
                 <option value="">직원 선택</option>
                 {activeEmployees.map((employee) => (
@@ -1286,15 +1304,7 @@ function CalendarPage({
               <select
                 value={repeatApplyMode}
                 onChange={(e) => setRepeatApplyMode(e.target.value)}
-                style={{
-                  width: "100%",
-                  minWidth: 0,
-                  padding: "9px 10px",
-                  borderRadius: "10px",
-                  border: "1px solid #dfe3e8",
-                  fontSize: "13px",
-                  fontWeight: "800",
-                }}
+                style={compactControlStyle}
               >
                 <option value="overwrite">덮어쓰기</option>
                 <option value="empty">빈 날짜만</option>
@@ -1313,29 +1323,13 @@ function CalendarPage({
                   type="date"
                   value={repeatStartDate}
                   onChange={(e) => setRepeatStartDate(e.target.value)}
-                  style={{
-                    width: "100%",
-                    minWidth: 0,
-                    padding: "9px 8px",
-                    borderRadius: "10px",
-                    border: "1px solid #dfe3e8",
-                    fontSize: "12px",
-                    fontWeight: "800",
-                  }}
+                  style={compactDateControlStyle}
                 />
                 <input
                   type="date"
                   value={repeatEndDate}
                   onChange={(e) => setRepeatEndDate(e.target.value)}
-                  style={{
-                    width: "100%",
-                    minWidth: 0,
-                    padding: "9px 8px",
-                    borderRadius: "10px",
-                    border: "1px solid #dfe3e8",
-                    fontSize: "12px",
-                    fontWeight: "800",
-                  }}
+                  style={compactDateControlStyle}
                 />
               </div>
             </div>
@@ -1439,13 +1433,7 @@ function CalendarPage({
                           nextPatternIds[index] = e.target.value;
                           setRepeatWeekPatternIds(nextPatternIds);
                         }}
-                        style={{
-                          width: "100%",
-                          padding: "8px 9px",
-                          borderRadius: "9px",
-                          border: "1px solid #ddd",
-                          fontSize: "13px",
-                        }}
+                        style={compactControlStyle}
                       >
                         <option value="">등록 안 함</option>
                         {patternTemplates.map((pattern) => (
@@ -1623,11 +1611,11 @@ function CalendarPage({
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: "8px",
+                    gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+                    gap: "6px",
                   }}
                 >
-                  <label style={{ fontSize: "13px", color: "#495057" }}>
+                  <label style={compactLabelStyle}>
                     복사할 달
                     <input
                       type="month"
@@ -1635,17 +1623,11 @@ function CalendarPage({
                       onChange={(e) =>
                         applyCopyMonthRange("source", e.target.value)
                       }
-                      style={{
-                        width: "100%",
-                        marginTop: "6px",
-                        padding: "12px",
-                        borderRadius: "10px",
-                        border: "1px solid #ddd",
-                      }}
+                      style={compactLabeledControlStyle}
                     />
                   </label>
 
-                  <label style={{ fontSize: "13px", color: "#495057" }}>
+                  <label style={compactLabelStyle}>
                     붙여넣을 달
                     <input
                       type="month"
@@ -1653,13 +1635,7 @@ function CalendarPage({
                       onChange={(e) =>
                         applyCopyMonthRange("target", e.target.value)
                       }
-                      style={{
-                        width: "100%",
-                        marginTop: "6px",
-                        padding: "12px",
-                        borderRadius: "10px",
-                        border: "1px solid #ddd",
-                      }}
+                      style={compactLabeledControlStyle}
                     />
                   </label>
                 </div>
@@ -1669,11 +1645,11 @@ function CalendarPage({
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: "8px",
+                    gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+                    gap: "6px",
                   }}
                 >
-                  <label style={{ fontSize: "13px", color: "#495057" }}>
+                  <label style={compactLabelStyle}>
                     복사할 주
                     <input
                       type="date"
@@ -1681,17 +1657,11 @@ function CalendarPage({
                       onChange={(e) =>
                         applyCopyWeekRange("source", e.target.value)
                       }
-                      style={{
-                        width: "100%",
-                        marginTop: "6px",
-                        padding: "12px",
-                        borderRadius: "10px",
-                        border: "1px solid #ddd",
-                      }}
+                      style={compactLabeledControlStyle}
                     />
                   </label>
 
-                  <label style={{ fontSize: "13px", color: "#495057" }}>
+                  <label style={compactLabelStyle}>
                     붙여넣을 주
                     <input
                       type="date"
@@ -1699,13 +1669,7 @@ function CalendarPage({
                       onChange={(e) =>
                         applyCopyWeekRange("target", e.target.value)
                       }
-                      style={{
-                        width: "100%",
-                        marginTop: "6px",
-                        padding: "12px",
-                        borderRadius: "10px",
-                        border: "1px solid #ddd",
-                      }}
+                      style={compactLabeledControlStyle}
                     />
                   </label>
                 </div>
@@ -1720,8 +1684,8 @@ function CalendarPage({
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: "8px",
+                      gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+                      gap: "6px",
                       marginBottom: "12px",
                     }}
                   >
@@ -1729,23 +1693,13 @@ function CalendarPage({
                       type="date"
                       value={copySourceStartDate}
                       onChange={(e) => setCopySourceStartDate(e.target.value)}
-                      style={{
-                        width: "100%",
-                        padding: "12px",
-                        borderRadius: "10px",
-                        border: "1px solid #ddd",
-                      }}
+                      style={compactDateControlStyle}
                     />
                     <input
                       type="date"
                       value={copySourceEndDate}
                       onChange={(e) => setCopySourceEndDate(e.target.value)}
-                      style={{
-                        width: "100%",
-                        padding: "12px",
-                        borderRadius: "10px",
-                        border: "1px solid #ddd",
-                      }}
+                      style={compactDateControlStyle}
                     />
                   </div>
 
@@ -1756,31 +1710,21 @@ function CalendarPage({
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: "8px",
+                      gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+                      gap: "6px",
                     }}
                   >
                     <input
                       type="date"
                       value={copyTargetStartDate}
                       onChange={(e) => setCopyTargetStartDate(e.target.value)}
-                      style={{
-                        width: "100%",
-                        padding: "12px",
-                        borderRadius: "10px",
-                        border: "1px solid #ddd",
-                      }}
+                      style={compactDateControlStyle}
                     />
                     <input
                       type="date"
                       value={copyTargetEndDate}
                       onChange={(e) => setCopyTargetEndDate(e.target.value)}
-                      style={{
-                        width: "100%",
-                        padding: "12px",
-                        borderRadius: "10px",
-                        border: "1px solid #ddd",
-                      }}
+                      style={compactDateControlStyle}
                     />
                   </div>
                 </div>
@@ -1813,12 +1757,7 @@ function CalendarPage({
               <select
                 value={copyEmployee}
                 onChange={(e) => setCopyEmployee(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "12px",
-                  borderRadius: "10px",
-                  border: "1px solid #ddd",
-                }}
+                style={compactControlStyle}
               >
                 <option value="ALL">전체 직원</option>
                 {activeEmployees.map((employee) => (
@@ -1837,12 +1776,7 @@ function CalendarPage({
               <select
                 value={copyApplyMode}
                 onChange={(e) => setCopyApplyMode(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "12px",
-                  borderRadius: "10px",
-                  border: "1px solid #ddd",
-                }}
+                style={compactControlStyle}
               >
                 <option value="overwrite">기존 스케줄 덮어쓰기</option>
                 <option value="empty">빈 날짜에만 등록</option>
@@ -1960,18 +1894,72 @@ function formatDateRange(startDate, endDate) {
   return `${startDate} ~ ${endDate}`;
 }
 
+function filterSchedulesByEmployeeId(schedules, employeeId) {
+  return Object.entries(schedules).reduce((acc, [date, dailySchedules]) => {
+    const filteredSchedules = dailySchedules.filter(
+      (schedule) => String(schedule.employeeId) === String(employeeId),
+    );
+
+    if (filteredSchedules.length > 0) {
+      acc[date] = filteredSchedules;
+    }
+
+    return acc;
+  }, {});
+}
+
 function getSegmentButtonStyle(isActive) {
   return {
     border: "none",
     background: isActive ? "#3182f6" : "#f1f3f5",
     color: isActive ? "#fff" : "#495057",
     borderRadius: "10px",
-    padding: "9px",
-    fontSize: "13px",
+    minWidth: 0,
+    padding: "8px 6px",
+    fontSize: "12px",
     fontWeight: "800",
     cursor: "pointer",
+    lineHeight: "1.2",
+    whiteSpace: "nowrap",
   };
 }
+
+const compactControlStyle = {
+  width: "100%",
+  minWidth: 0,
+  minHeight: "36px",
+  background: "#fff",
+  color: "#191f28",
+  padding: "8px 8px",
+  paddingRight: "26px",
+  borderRadius: "9px",
+  border: "1px solid #dfe3e8",
+  fontSize: "12px",
+  fontWeight: "800",
+  lineHeight: "1.2",
+  opacity: 1,
+};
+
+const compactDateControlStyle = {
+  ...compactControlStyle,
+  padding: "8px 5px",
+  paddingRight: "5px",
+  fontSize: "11px",
+  letterSpacing: 0,
+};
+
+const compactLabelStyle = {
+  color: "#495057",
+  display: "block",
+  fontSize: "12px",
+  fontWeight: "800",
+  minWidth: 0,
+};
+
+const compactLabeledControlStyle = {
+  ...compactDateControlStyle,
+  marginTop: "5px",
+};
 
 function RepeatSelectRow({ label, value, onChange, shiftTypes }) {
   return (
@@ -1999,14 +1987,7 @@ function RepeatSelectRow({ label, value, onChange, shiftTypes }) {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        style={{
-          width: "100%",
-          padding: "7px 8px",
-          borderRadius: "9px",
-          border: "1px solid #dfe3e8",
-          fontSize: "12px",
-          fontWeight: "800",
-        }}
+        style={compactControlStyle}
       >
         <option value="">등록 안 함</option>
         {shiftTypes.map((shiftType) => (

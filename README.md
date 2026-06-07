@@ -1,16 +1,51 @@
-# React + Vite
+# ShiftMate
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+교대 근무 스케줄을 모바일에서 확인하고 관리하는 React + Vite + Capacitor 앱입니다.
 
-Currently, two official plugins are available:
+## 현재 구성
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- React + Vite
+- Supabase 연동
+- Capacitor Android 프로젝트 포함
+- Android 앱 ID: `com.shiftmate.app`
+- 앱 이름: `ShiftMate`
 
-## React Compiler
+## 처음 실행
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm install
+cp .env.example .env
+npm run dev
+```
 
-## Expanding the ESLint configuration
+`.env`에는 Supabase 값을 넣어주세요.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```env
+VITE_SUPABASE_URL=본인_SUPABASE_URL
+VITE_SUPABASE_PUBLISHABLE_KEY=본인_SUPABASE_PUBLISHABLE_KEY
+```
+
+## 웹 빌드 확인
+
+```bash
+npm run build
+npm run preview
+```
+
+## Android 동기화
+
+웹 코드를 수정한 뒤 Android 앱에 반영할 때는 아래 명령을 실행합니다.
+
+```bash
+npm run android:sync
+```
+
+## Android Studio 열기
+
+```bash
+npm run android:studio
+```
+
+또는 Android Studio에서 `android/` 폴더를 직접 열어도 됩니다.
+
+자세한 Android 배포 순서는 `ANDROID_BUILD.md`를 확인하세요.
