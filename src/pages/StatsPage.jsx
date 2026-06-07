@@ -203,7 +203,9 @@ function StatsPage({
         fontWeight: "900",
       }}
     >
-      {currentEmployeeName ? `내 통계 · ${currentEmployeeName}` : "직원 연결 없음"}
+      {currentEmployeeName
+        ? `내 통계 · ${currentEmployeeName}`
+        : "직원 연결 없음"}
     </div>
   );
 
@@ -367,9 +369,7 @@ function StatsPage({
               />
             </div>
 
-            <div style={{ minWidth: 0 }}>
-              {employeeFilterControl}
-            </div>
+            <div style={{ minWidth: 0 }}>{employeeFilterControl}</div>
           </div>
         ) : (
           <div
@@ -395,9 +395,7 @@ function StatsPage({
         )}
 
         {mode !== "month" && (
-          <div style={{ marginTop: "10px" }}>
-            {employeeFilterControl}
-          </div>
+          <div style={{ marginTop: "10px" }}>{employeeFilterControl}</div>
         )}
       </section>
 
@@ -791,7 +789,9 @@ function PersonalStatsPanel({
       ? nonWorkDetails.map(([label, count]) => `${label} ${count}`).join(" / ")
       : "없음";
   const averageWorkMinutes =
-    stats.totalWork > 0 ? Math.round(stats.totalWorkMinutes / stats.totalWork) : 0;
+    stats.totalWork > 0
+      ? Math.round(stats.totalWorkMinutes / stats.totalWork)
+      : 0;
 
   return (
     <section
@@ -915,7 +915,8 @@ function PersonalStatsPanel({
                 marginTop: "8px",
               }}
             >
-              {stats.totalWork}번 근무 · 평균 {formatMinutes(averageWorkMinutes)}
+              {stats.totalWork}번 근무 · 평균{" "}
+              {formatMinutes(averageWorkMinutes)}
             </div>
           </div>
 
@@ -1019,8 +1020,7 @@ function EmployeeStatCard({
 }) {
   const isDetail = variant === "detail";
   const nonWorkDetails = getNonWorkDetailEntries(employee.nonWorkDetails);
-  const statColumnCount =
-    3 + (hasWeekendWork ? 1 : 0) + (hasNightWork ? 1 : 0);
+  const statColumnCount = 3 + (hasWeekendWork ? 1 : 0) + (hasNightWork ? 1 : 0);
 
   return (
     <div
@@ -1059,7 +1059,11 @@ function EmployeeStatCard({
             gap: isDetail ? "6px" : "3px",
           }}
         >
-          <CompactStat label="근무" value={`${employee.work}`} color="#3182f6" />
+          <CompactStat
+            label="근무"
+            value={`${employee.work}`}
+            color="#3182f6"
+          />
           <CompactStat
             label="시간"
             value={formatCompactMinutes(employee.workMinutes)}

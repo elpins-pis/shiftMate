@@ -478,27 +478,29 @@ function CalendarPage({
       return;
     }
 
-    const copiedItems = getDateRange(copySourceStartDate, copySourceEndDate)
-      .flatMap((sourceDate) => {
-        const targetDate = getMatchingWeekdayDate(
-          sourceDate,
-          copySourceStartDate,
-          copyTargetStartDate,
-          copyTargetEndDate,
-        );
+    const copiedItems = getDateRange(
+      copySourceStartDate,
+      copySourceEndDate,
+    ).flatMap((sourceDate) => {
+      const targetDate = getMatchingWeekdayDate(
+        sourceDate,
+        copySourceStartDate,
+        copyTargetStartDate,
+        copyTargetEndDate,
+      );
 
-        if (!targetDate) return [];
+      if (!targetDate) return [];
 
-        return (schedules[sourceDate] || [])
-          .filter(
-            (schedule) =>
-              copyEmployee === "ALL" || schedule.name === copyEmployee,
-          )
-          .map((schedule) => ({
-            targetDate,
-            schedule: createScheduleFromExisting(schedule),
-          }));
-      });
+      return (schedules[sourceDate] || [])
+        .filter(
+          (schedule) =>
+            copyEmployee === "ALL" || schedule.name === copyEmployee,
+        )
+        .map((schedule) => ({
+          targetDate,
+          schedule: createScheduleFromExisting(schedule),
+        }));
+    });
 
     if (copiedItems.length === 0) {
       alert("복사할 스케줄이 없습니다.");
@@ -1026,7 +1028,9 @@ function CalendarPage({
 
                       {canManage && (
                         <button
-                          onClick={() => handleDeleteSchedule(selectedDate, idx)}
+                          onClick={() =>
+                            handleDeleteSchedule(selectedDate, idx)
+                          }
                           style={{
                             border: "none",
                             background: "#fff5f5",
