@@ -32,7 +32,7 @@ function PendingApprovalPage({ workspace }) {
             marginBottom: "8px",
           }}
         >
-          관리자 승인을 기다리고 있어요
+          직원 이메일 연결을 기다리고 있어요
         </h1>
         <p
           style={{
@@ -42,8 +42,8 @@ function PendingApprovalPage({ workspace }) {
             lineHeight: "1.45",
           }}
         >
-          {workspace?.name || "근무표"} 참여 요청이 접수되었습니다.
-          승인되면 스케줄을 확인할 수 있습니다.
+          {workspace?.name || "근무표"}에 아직 현재 로그인 이메일과 일치하는
+          직원 정보가 없습니다.
         </p>
       </div>
 
@@ -64,7 +64,7 @@ function PendingApprovalPage({ workspace }) {
             marginBottom: "6px",
           }}
         >
-          승인 전에는 이렇게 제한됩니다
+          연결 전에는 이렇게 제한됩니다
         </div>
         <div
           style={{
@@ -74,8 +74,8 @@ function PendingApprovalPage({ workspace }) {
             lineHeight: "1.55",
           }}
         >
-          직원, 근무유형, 스케줄, 통계 데이터는 관리자 승인 후에만 볼 수
-          있습니다.
+          관리자에게 직원 목록의 이메일 등록 상태를 확인해주세요. 이메일이
+          일치하면 근무표를 볼 수 있습니다.
         </div>
       </div>
 

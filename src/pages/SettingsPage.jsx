@@ -386,7 +386,7 @@ function SettingsPage({
     try {
       await onApproveMember(userId);
     } catch (error) {
-      alert(error.message || "참여 요청을 승인하지 못했습니다.");
+      alert(error.message || "계정을 연결하지 못했습니다.");
     } finally {
       setProcessingMemberId(null);
     }
@@ -394,7 +394,7 @@ function SettingsPage({
   const handleRejectMember = async (userId) => {
     if (!onRejectMember) return;
 
-    const confirmed = window.confirm("이 참여 요청을 거절할까요?");
+    const confirmed = window.confirm("이 연결 대기 항목을 거절할까요?");
 
     if (!confirmed) return;
 
@@ -403,7 +403,7 @@ function SettingsPage({
     try {
       await onRejectMember(userId);
     } catch (error) {
-      alert(error.message || "참여 요청을 거절하지 못했습니다.");
+      alert(error.message || "연결 대기 항목을 거절하지 못했습니다.");
     } finally {
       setProcessingMemberId(null);
     }
@@ -560,7 +560,7 @@ function SettingsPage({
               marginBottom: "12px",
             }}
           >
-            <h2 style={{ fontSize: "18px" }}>참여 요청</h2>
+            <h2 style={{ fontSize: "18px" }}>연결 대기</h2>
             <div
               style={{
                 background: "#fff4e6",
@@ -610,7 +610,7 @@ function SettingsPage({
                     marginTop: "4px",
                   }}
                 >
-                  요청 직원: {member.employeeName}
+                  연결 직원: {member.employeeName}
                 </div>
                 {member.employeeEmail && (
                   <div
@@ -635,7 +635,7 @@ function SettingsPage({
                     marginTop: "3px",
                   }}
                 >
-                  승인 전까지 스케줄을 볼 수 없습니다.
+                  연결 전까지 스케줄을 볼 수 없습니다.
                 </div>
               </div>
 
@@ -678,7 +678,7 @@ function SettingsPage({
                     padding: "8px 10px",
                   }}
                 >
-                  승인
+                  연결
                 </button>
               </div>
             </div>

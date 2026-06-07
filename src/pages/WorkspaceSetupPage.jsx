@@ -176,7 +176,7 @@ function WorkspaceSetupPage({ onComplete }) {
               background: "#191f28",
             }}
           >
-            참여 요청 보내기
+            근무표 참여하기
           </button>
         </form>
       </section>

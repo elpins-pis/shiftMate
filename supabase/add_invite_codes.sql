@@ -243,6 +243,21 @@ begin
     end if;
   end if;
 
+  update public.workspace_members
+  set employee_id = saved_employee_id,
+      role = 'USER'
+  where workspace_id = target_workspace_id
+    and lower(user_email) = normalized_email
+    and role = 'PENDING'
+    and not exists (
+      select 1
+      from public.workspace_members existing_member
+      where existing_member.workspace_id = target_workspace_id
+        and existing_member.employee_id = saved_employee_id
+        and existing_member.user_id <> public.workspace_members.user_id
+        and existing_member.role in ('ADMIN', 'USER')
+    );
+
   return saved_employee_id;
 end;
 $$;
@@ -308,10 +323,11 @@ begin
   end if;
 
   insert into public.workspace_members (workspace_id, user_id, role, user_email, employee_id)
-  values (target_workspace_id, auth.uid(), 'PENDING', user_email, matched_employee_id)
+  values (target_workspace_id, auth.uid(), 'USER', user_email, matched_employee_id)
   on conflict (workspace_id, user_id) do update
   set user_email = excluded.user_email,
-      employee_id = excluded.employee_id
+      employee_id = excluded.employee_id,
+      role = 'USER'
   where public.workspace_members.role = 'PENDING';
 
   return target_workspace_id;
